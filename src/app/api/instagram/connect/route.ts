@@ -1,17 +1,13 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
-// Escopos necessários para: ler/enviar Direct, ler/responder comentários,
-// e listar as Páginas do Facebook (pré-requisito da Graph API para Instagram).
+// Escopos da API do Instagram (login direto, sem precisar de Página do
+// Facebook) — ver Meta for Developers > Casos de uso > API do Instagram.
 const SCOPES = [
-  "pages_show_list",
-  "pages_manage_metadata",
-  "pages_messaging",
-  "instagram_basic",
-  "instagram_manage_messages",
-  "instagram_manage_comments",
-  "business_management",
+  "instagram_business_basic",
+  "instagram_business_manage_messages",
+  "instagram_business_manage_comments",
 ].join(",");
 
 export async function GET() {
@@ -21,17 +17,16 @@ export async function GET() {
   const workspace = await getCurrentWorkspace();
   if (!workspace) return NextResponse.json({ error: "Workspace não encontrado" }, { status: 400 });
 
-  const appId = process.env.META_APP_ID;
+  const appId = process.env.INSTAGRAM_APP_ID;
   const redirectUri = process.env.META_REDIRECT_URI;
-
   if (!appId || !redirectUri) {
     return NextResponse.json(
-      { error: "META_APP_ID / META_REDIRECT_URI não configurados. Veja o README." },
+      { error: "INSTAGRAM_APP_ID / META_REDIRECT_URI não configurados. Veja o README." },
       { status: 500 }
     );
   }
 
-  const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+  const authUrl = new URL("https://www.instagram.com/oauth/authorize");
   authUrl.searchParams.set("client_id", appId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("scope", SCOPES);

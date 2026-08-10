@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { instagramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
-// Troca o "code" do OAuth por um token de longa duração, busca as Páginas do
-// Facebook do usuário e, para cada uma com uma conta comercial do Instagram
-// vinculada, salva a conexão no banco. Baseado no fluxo padrão da Graph API
-// da Meta (o mesmo usado por qualquer ferramenta de automação de Instagram).
+// Troca o "code" do OAuth (login direto do Instagram) por um token de longa
+// duração e salva a conexão no banco. Fluxo da API do Instagram com login do
+// Instagram (não depende de Página do Facebook).
 export async function GET(req: Request) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
@@ -20,69 +19,59 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${origin}/settings?ig_error=missing_code`);
   }
 
-  const appId = process.env.META_APP_ID!;
-  const appSecret = process.env.META_APP_SECRET!;
+  const appId = process.env.INSTAGRAM_APP_ID!;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET!;
   const redirectUri = process.env.META_REDIRECT_URI!;
 
   try {
-    // 1) code → token de curta duração
-    const shortRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
-    );
-    const shortData = await shortRes.json();
-    if (shortData.error) throw new Error(shortData.error.message);
+    const shortForm = new URLSearchParams();
+    shortForm.set("client_id", appId);
+    shortForm.set("client_secret", appSecret);
+    shortForm.set("grant_type", "authorization_code");
+    shortForm.set("redirect_uri", redirectUri);
+    shortForm.set("code", code);
 
-    // 2) troca por token de longa duração (~60 dias)
+    const shortRes = await fetch("https://api.instagram.com/oauth/access_token", {
+      method: "POST",
+      body: shortForm,
+    });
+    const shortData = await shortRes.json();
+    if (shortData.error_message) throw new Error(shortData.error_message);
+
     const longRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortData.access_token}`
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortData.access_token}`
     );
     const longData = await longRes.json();
     if (longData.error) throw new Error(longData.error.message);
 
-    // 3) lista as Páginas do Facebook administradas pelo usuário
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?access_token=${longData.access_token}&fields=id,name,access_token,instagram_business_account{id,username}`
+    const meRes = await fetch(
+      `https://graph.instagram.com/v21.0/me?fields=user_id,username&access_token=${longData.access_token}`
     );
-    const pagesData = await pagesRes.json();
-    if (pagesData.error) throw new Error(pagesData.error.message);
+    const meData = await meRes.json();
+    if (meData.error) throw new Error(meData.error.message);
 
-    const pages = (pagesData.data ?? []) as Array<{
-      id: string;
-      name: string;
-      access_token: string;
-      instagram_business_account?: { id: string; username?: string };
-    }>;
+    const igUserId = String(meData.user_id ?? shortData.user_id);
 
-    const withInstagram = pages.filter((p) => p.instagram_business_account?.id);
+    const [existing] = await db
+      .select()
+      .from(instagramAccounts)
+      .where(and(eq(instagramAccounts.workspaceId, workspaceId), eq(instagramAccounts.igUserId, igUserId)))
+      .limit(1);
 
-    if (withInstagram.length === 0) {
-      return NextResponse.redirect(`${origin}/settings?ig_error=no_ig_business_account`);
-    }
+    const values = {
+      workspaceId,
+      igUserId,
+      igUsername: meData.username ?? null,
+      pageId: null,
+      pageName: null,
+      accessToken: longData.access_token,
+      connected: true,
+    };
 
-    for (const page of withInstagram) {
-      const igUserId = page.instagram_business_account!.id;
-
-      const [existing] = await db
-        .select()
-        .from(instagramAccounts)
-        .where(and(eq(instagramAccounts.workspaceId, workspaceId), eq(instagramAccounts.igUserId, igUserId)))
-        .limit(1);
-
-      const values = {
-        workspaceId,
-        igUserId,
-        igUsername: page.instagram_business_account!.username ?? null,
-        pageId: page.id,
-        pageName: page.name,
-        accessToken: page.access_token, // token de página, de longa duração
-        connected: true,
-      };
-
-      if (existing) {
-        await db.update(instagramAccounts).set(values).where(eq(instagramAccounts.id, existing.id));
-      } else {
-        await db.insert(instagramAccounts).values(values);
-      }
+    if (existing) {
+      await db.update(instagramAccounts).set(values).where(eq(instagramAccounts.id, existing.id));
+    } else {
+      await db.insert(instagramAccounts).values(values);
     }
 
     return NextResponse.redirect(`${origin}/settings?ig_connected=1`);

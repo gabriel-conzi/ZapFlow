@@ -1,4 +1,4 @@
-import {
+﻿import {
   pgTable,
   text,
   timestamp,
@@ -11,9 +11,9 @@ import {
 import { relations } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 
-// ─────────────────────────────────────────────────────────────────────────
-// AUTENTICAÇÃO (tabelas exigidas pelo Auth.js / Drizzle Adapter)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// AUTENTICAÃ‡ÃƒO (tabelas exigidas pelo Auth.js / Drizzle Adapter)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const users = pgTable("users", {
   id: text("id")
@@ -23,7 +23,7 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
-  passwordHash: text("password_hash"), // null se o login for só via Google
+  passwordHash: text("password_hash"), // null se o login for sÃ³ via Google
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   emailIdx: uniqueIndex("users_email_idx").on(table.email),
@@ -73,9 +73,9 @@ export const verificationTokens = pgTable(
   })
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// WORKSPACES (preparado para multiempresa no futuro; hoje 1 workspace = 1 usuário)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// WORKSPACES (preparado para multiempresa no futuro; hoje 1 workspace = 1 usuÃ¡rio)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const workspaces = pgTable("workspaces", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -98,32 +98,32 @@ export const workspaceMembers = pgTable(
   })
 );
 
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONTAS DE INSTAGRAM CONECTADAS
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const instagramAccounts = pgTable("instagram_accounts", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   igUserId: text("ig_user_id").notNull(), // ID da conta comercial do Instagram
   igUsername: text("ig_username"),
-  pageId: text("page_id").notNull(), // Página do Facebook vinculada (obrigatório p/ Graph API)
+  pageId: text("page_id"), // PÃ¡gina do Facebook vinculada (obrigatÃ³rio p/ Graph API)
   pageName: text("page_name"),
-  accessToken: text("access_token").notNull(), // token de página, longa duração
+  accessToken: text("access_token").notNull(), // token de pÃ¡gina, longa duraÃ§Ã£o
   tokenExpiresAt: timestamp("token_expires_at"),
   connected: boolean("connected").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONTATOS / CRM
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const contacts = pgTable("contacts", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   instagramAccountId: text("instagram_account_id").references(() => instagramAccounts.id, { onDelete: "cascade" }),
-  igScopedId: text("ig_scoped_id").notNull(), // ID do usuário do IG (escopado por conta)
+  igScopedId: text("ig_scoped_id").notNull(), // ID do usuÃ¡rio do IG (escopado por conta)
   name: text("name"),
   username: text("username"),
   profilePicUrl: text("profile_pic_url"),
@@ -147,9 +147,9 @@ export const contactTags = pgTable(
   (t) => ({ pk: primaryKey({ columns: [t.contactId, t.tagId] }) })
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// CONVERSAS E MENSAGENS (Direct + Comentários)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CONVERSAS E MENSAGENS (Direct + ComentÃ¡rios)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const conversations = pgTable("conversations", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -170,13 +170,13 @@ export const messages = pgTable("messages", {
   text: text("text"),
   mediaUrl: text("media_url"),
   igMessageId: text("ig_message_id"),
-  automationId: text("automation_id"), // se foi enviada por uma automação
+  automationId: text("automation_id"), // se foi enviada por uma automaÃ§Ã£o
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// AUTOMAÇÕES (construtor visual)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// AUTOMAÃ‡Ã•ES (construtor visual)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const automations = pgTable("automations", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -199,9 +199,9 @@ export const automationLogs = pgTable("automation_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// CONFIGURAÇÃO DE IA (prompts por workspace)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CONFIGURAÃ‡ÃƒO DE IA (prompts por workspace)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const aiSettings = pgTable("ai_settings", {
   workspaceId: text("workspace_id").primaryKey().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -211,9 +211,9 @@ export const aiSettings = pgTable("ai_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// ASSINATURA (estrutura pronta para Stripe — não ativo ainda)
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ASSINATURA (estrutura pronta para Stripe â€” nÃ£o ativo ainda)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const subscriptions = pgTable("subscriptions", {
   workspaceId: text("workspace_id").primaryKey().references(() => workspaces.id, { onDelete: "cascade" }),
@@ -223,9 +223,9 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd: timestamp("current_period_end"),
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// RELAÇÕES
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// RELAÃ‡Ã•ES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const usersRelations = relations(users, ({ many }) => ({
   workspaces: many(workspaces),
