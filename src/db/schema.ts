@@ -129,6 +129,9 @@ export const contacts = pgTable("contacts", {
   profilePicUrl: text("profile_pic_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastInteractionAt: timestamp("last_interaction_at").defaultNow().notNull(),
+  // true quando o contato mandou um comando de opt-out ("parar" etc.) — nenhuma
+  // automação dispara pra ele até que mande um comando de opt-in ("voltar")
+  optedOut: boolean("opted_out").notNull().default(false),
 });
 
 export const tags = pgTable("tags", {

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Users } from "lucide-react";
+import { OptOutToggle } from "@/components/contacts/opt-out-toggle";
 
 export default async function ContactsPage() {
   const workspace = await getCurrentWorkspace();
@@ -33,6 +34,9 @@ export default async function ContactsPage() {
                   <tr key={c.id} className="border-b last:border-0">
                     <td className="p-4 font-medium">{c.name ?? c.username ?? c.igScopedId}</td>
                     <td className="p-4 text-muted-foreground">{c.username ? `@${c.username}` : ""}</td>
+                    <td className="p-4">
+                      <OptOutToggle contactId={c.id} optedOut={c.optedOut} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

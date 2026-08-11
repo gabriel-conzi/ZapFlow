@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
-import { triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
+import { handleOptControlKeyword, triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
 // Meta Developer (Products → Webhooks → Instagram). Veja o README.
@@ -129,19 +129,29 @@ async function processMessagingEntry(entry: IgEntry) {
     // dispara automações (palavra-chave / boas-vindas) depois de salvar a
     // mensagem — se der erro, não deve derrubar o recebimento da mensagem em si
     try {
-      const existingMessages = await db
-        .select({ id: messages.id })
-        .from(messages)
-        .where(eq(messages.conversationId, conversation.id));
-      const isFirstMessage = existingMessages.length === 1;
-
-      await triggerAutomationsForMessage({
-        workspaceId: account.workspaceId,
+      const handled = await handleOptControlKeyword({
         contactId: contact.id,
         conversationId: conversation.id,
-        messageText: msg.text ?? null,
-        isFirstMessage,
+        text: msg.text ?? null,
+        accessToken: account.accessToken,
+        recipientId: contact.igScopedId,
       });
+
+      if (!handled) {
+        const existingMessages = await db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(eq(messages.conversationId, conversation.id));
+        const isFirstMessage = existingMessages.length === 1;
+
+        await triggerAutomationsForMessage({
+          workspaceId: account.workspaceId,
+          contactId: contact.id,
+          conversationId: conversation.id,
+          messageText: msg.text ?? null,
+          isFirstMessage,
+        });
+      }
     } catch (err) {
       console.error("[instagram/webhook] erro ao disparar automação:", err);
     }
@@ -194,14 +204,25 @@ async function processCommentEntry(entry: IgEntry) {
 
       await db.update(contacts).set({ lastInteractionAt: new Date() }).where(eq(contacts.id, contact.id));
 
-      await triggerAutomationsForComment({
-        workspaceId: account.workspaceId,
+      const handled = await handleOptControlKeyword({
         contactId: contact.id,
         conversationId: conversation.id,
+        text: comment.text ?? null,
+        accessToken: account.accessToken,
+        recipientId: contact.igScopedId,
         commentId: comment.id,
-        commentText: comment.text ?? null,
-        mediaId: comment.media?.id ?? null,
       });
+
+      if (!handled) {
+        await triggerAutomationsForComment({
+          workspaceId: account.workspaceId,
+          contactId: contact.id,
+          conversationId: conversation.id,
+          commentId: comment.id,
+          commentText: comment.text ?? null,
+          mediaId: comment.media?.id ?? null,
+        });
+      }
     } catch (err) {
       console.error("[instagram/webhook] erro ao processar comentário:", err);
     }

@@ -10,7 +10,7 @@ import {
   messages,
   tags,
 } from "@/db/schema";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
 import type { AutomationFlow, DelayNodeData, AddTagNodeData, ConditionNodeData, SendMessageNodeData } from "@/lib/automation-types";
 
@@ -59,6 +59,76 @@ export function matchesTrigger(flow: AutomationFlow, event: TriggerEvent): boole
   return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
 }
 
+const OPT_OUT_WORDS = ["parar", "pare", "cancelar", "sair", "descadastrar", "stop"];
+const OPT_IN_WORDS = ["voltar", "reativar"];
+
+function normalizeControlText(text: string | null): string {
+  return (text ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[!.?]+$/, "");
+}
+
+/**
+ * Trata comandos globais de opt-out/opt-in ("parar", "voltar" etc.) — têm
+ * prioridade sobre qualquer automação normal e funcionam mesmo sem nenhuma
+ * automação configurada pra eles. Precisa ser a mensagem inteira (não uma
+ * palavra dentro de uma frase maior), pra não disparar por engano.
+ * Retorna true se a mensagem era um desses comandos — nesse caso quem chamou
+ * NÃO deve rodar o disparo normal de automações pra essa mensagem.
+ */
+export async function handleOptControlKeyword(params: {
+  contactId: string;
+  conversationId: string;
+  text: string | null;
+  accessToken: string;
+  recipientId: string;
+  commentId?: string;
+}): Promise<boolean> {
+  const normalized = normalizeControlText(params.text);
+  if (!normalized) return false;
+
+  const isOptOut = OPT_OUT_WORDS.includes(normalized);
+  const isOptIn = OPT_IN_WORDS.includes(normalized);
+  if (!isOptOut && !isOptIn) return false;
+
+  await db.update(contacts).set({ optedOut: isOptOut }).where(eq(contacts.id, params.contactId));
+
+  if (isOptOut) {
+    // cancela qualquer automação em andamento ou esperando pra esse contato
+    await db
+      .update(automationRuns)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(eq(automationRuns.contactId, params.contactId), inArray(automationRuns.status, ["running", "waiting"]))
+      );
+  }
+
+  const confirmText = isOptOut
+    ? 'Combinado! Você não vai mais receber mensagens automáticas por aqui. Se mudar de ideia, é só mandar "voltar".'
+    : "Prontinho, você voltou a receber nossas mensagens automáticas. 🎉";
+
+  try {
+    const result = await sendInstagramMessage({
+      accessToken: params.accessToken,
+      recipientId: params.recipientId,
+      commentId: params.commentId,
+      text: confirmText,
+    });
+    await db.insert(messages).values({
+      conversationId: params.conversationId,
+      direction: "outbound",
+      sender: "automation",
+      text: confirmText,
+      igMessageId: result.message_id ?? null,
+    });
+  } catch (err) {
+    console.error("[automations] erro ao confirmar opt-out/opt-in:", err);
+  }
+
+  return true;
+}
+
 /** Acha, entre as automações ativas do workspace, a primeira cujo gatilho bate com a mensagem de Direct — e a inicia. */
 export async function triggerAutomationsForMessage(params: {
   workspaceId: string;
@@ -68,6 +138,13 @@ export async function triggerAutomationsForMessage(params: {
   isFirstMessage: boolean;
 }) {
   const { workspaceId, contactId, conversationId, messageText, isFirstMessage } = params;
+
+  const [contact] = await db
+    .select({ optedOut: contacts.optedOut })
+    .from(contacts)
+    .where(eq(contacts.id, contactId))
+    .limit(1);
+  if (contact?.optedOut) return;
 
   const active = await db
     .select()
@@ -94,6 +171,13 @@ export async function triggerAutomationsForComment(params: {
   mediaId: string | null;
 }) {
   const { workspaceId, contactId, conversationId, commentId, commentText, mediaId } = params;
+
+  const [contact] = await db
+    .select({ optedOut: contacts.optedOut })
+    .from(contacts)
+    .where(eq(contacts.id, contactId))
+    .limit(1);
+  if (contact?.optedOut) return;
 
   const active = await db
     .select()
