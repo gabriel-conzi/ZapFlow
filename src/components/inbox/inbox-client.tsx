@@ -165,7 +165,17 @@ export function InboxClient() {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-medium">{label}</p>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <p className="truncate text-sm font-medium">{label}</p>
+                      {c.channel === "comment" && (
+                        <span
+                          className="shrink-0 rounded bg-fuchsia-100 px-1 py-px text-[9px] font-medium text-fuchsia-700"
+                          title="Veio de um comentário"
+                        >
+                          comentário
+                        </span>
+                      )}
+                    </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {c.lastMessage ? formatTime(c.lastMessage.createdAt) : formatTime(c.updatedAt)}
                     </span>

@@ -54,11 +54,15 @@ export function TriggerNode({ data, selected }: NodeProps & { data: TriggerNodeD
       title="Gatilho"
       showTarget={false}
     >
-      {data.triggerType === "welcome" ? (
-        <p>Primeira mensagem do contato</p>
-      ) : (
+      {data.triggerType === "welcome" && <p>Primeira mensagem do contato</p>}
+      {data.triggerType === "keyword" && (
         <p className="truncate">
-          Palavra-chave: {data.keywords?.length ? data.keywords.join(", ") : <em>nenhuma definida</em>}
+          Palavra-chave (DM): {data.keywords?.length ? data.keywords.join(", ") : <em>nenhuma definida</em>}
+        </p>
+      )}
+      {data.triggerType === "comment" && (
+        <p className="truncate">
+          Comentário: {data.keywords?.length ? data.keywords.join(", ") : <em>nenhuma definida</em>}
         </p>
       )}
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />

@@ -39,16 +39,17 @@ export function NodePanel({
                 value={node.data.triggerType}
                 onChange={(e) =>
                   onChange({
-                    triggerType: e.target.value as "keyword" | "welcome",
-                    keywords: e.target.value === "keyword" ? node.data.keywords ?? [] : undefined,
+                    triggerType: e.target.value as "keyword" | "welcome" | "comment",
+                    keywords: e.target.value !== "welcome" ? node.data.keywords ?? [] : undefined,
                   })
                 }
               >
-                <option value="keyword">Palavra-chave</option>
+                <option value="keyword">Palavra-chave (Direct)</option>
+                <option value="comment">Comentário em post/reels</option>
                 <option value="welcome">Primeira mensagem (boas-vindas)</option>
               </select>
             </div>
-            {node.data.triggerType === "keyword" && (
+            {(node.data.triggerType === "keyword" || node.data.triggerType === "comment") && (
               <div>
                 <label className="text-xs font-medium">Palavras-chave (separe por vírgula)</label>
                 <Textarea
@@ -60,9 +61,18 @@ export function NodePanel({
                   placeholder="preço, valor, quanto custa"
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Dispara se a mensagem recebida contiver qualquer uma dessas palavras.
+                  {node.data.triggerType === "comment"
+                    ? "Dispara se um comentário público em qualquer post/reels contiver uma dessas palavras. A resposta vai como mensagem privada pro autor do comentário."
+                    : "Dispara se a mensagem de Direct recebida contiver qualquer uma dessas palavras."}
                 </p>
               </div>
+            )}
+            {node.data.triggerType === "comment" && (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                A Meta só permite <b>1 resposta privada por comentário</b>, e só dentro de 7 dias. Se
+                o fluxo tiver mais de um passo de &quot;Enviar mensagem&quot;, só o primeiro vai funcionar
+                (a menos que o contato responda antes).
+              </p>
             )}
           </div>
         )}

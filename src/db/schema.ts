@@ -211,6 +211,10 @@ export const automationRuns = pgTable("automation_runs", {
   status: text("status").notNull().default("running"), // running | waiting | completed | failed
   nextNodeId: text("next_node_id"), // próximo nó do fluxo a executar; null = terminou
   resumeAt: timestamp("resume_at"), // preenchido só quando status = "waiting"
+  // se a execução começou por um gatilho de comentário, guarda o ID do
+  // comentário aqui — a Meta só permite responder 1x por comentário via
+  // "resposta privada", então limpamos esse campo depois do 1º envio
+  commentId: text("comment_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

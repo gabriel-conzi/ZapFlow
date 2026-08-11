@@ -117,7 +117,7 @@ export async function getOrCreateConversation(params: {
 export async function subscribeInstagramAccount(params: { accessToken: string; igUserId: string }) {
   const { accessToken, igUserId } = params;
   const res = await fetch(
-    `https://graph.instagram.com/${GRAPH_VERSION}/${igUserId}/subscribed_apps?subscribed_fields=messages&access_token=${accessToken}`,
+    `https://graph.instagram.com/${GRAPH_VERSION}/${igUserId}/subscribed_apps?subscribed_fields=messages,comments&access_token=${accessToken}`,
     { method: "POST" }
   );
   const data = await res.json();
@@ -131,20 +131,27 @@ export async function subscribeInstagramAccount(params: { accessToken: string; i
  * Envia uma mensagem de Direct pro contato via Graph API do Instagram.
  * Lança erro se a Meta recusar (token vencido, fora da janela de 24h, etc.)
  * — quem chamar deve tratar o erro e avisar o usuário.
+ *
+ * Passe `commentId` em vez de `recipientId` pra mandar uma "resposta
+ * privada" a um comentário (primeiro contato, antes de existir uma janela
+ * de mensagens aberta) — a Meta só permite isso 1x por comentário, dentro
+ * de 7 dias. Depois desse primeiro envio, use `recipientId` normalmente.
  */
 export async function sendInstagramMessage(params: {
   accessToken: string;
-  recipientId: string;
+  recipientId?: string;
+  commentId?: string;
   text: string;
 }) {
-  const { accessToken, recipientId, text } = params;
+  const { accessToken, recipientId, commentId, text } = params;
+  const recipient = commentId ? { comment_id: commentId } : { id: recipientId };
 
   const res = await fetch(
     `https://graph.instagram.com/${GRAPH_VERSION}/me/messages?access_token=${accessToken}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+      body: JSON.stringify({ recipient, message: { text } }),
     }
   );
   const data = await res.json();

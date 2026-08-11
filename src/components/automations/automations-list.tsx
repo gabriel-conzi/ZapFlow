@@ -30,7 +30,8 @@ function triggerSummary(flow: unknown) {
   if (!trigger || trigger.type !== "trigger") return "Sem gatilho configurado";
   if (trigger.data.triggerType === "welcome") return "Gatilho: primeira mensagem";
   const keywords = trigger.data.keywords ?? [];
-  return keywords.length ? `Gatilho: "${keywords.join(", ")}"` : "Gatilho: palavra-chave (nenhuma definida)";
+  const prefix = trigger.data.triggerType === "comment" ? "Gatilho: comentário" : "Gatilho: Direct";
+  return keywords.length ? `${prefix} "${keywords.join(", ")}"` : `${prefix} (nenhuma palavra definida)`;
 }
 
 export function AutomationsList({ initial }: { initial: AutomationRow[] }) {

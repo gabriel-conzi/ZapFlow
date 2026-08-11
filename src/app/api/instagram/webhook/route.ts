@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
-import { triggerAutomationsForMessage } from "@/lib/automations";
+import { triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
 // Meta Developer (Products → Webhooks → Instagram). Veja o README.
@@ -31,22 +31,40 @@ type IgMessagingEvent = {
   };
 };
 
+type IgCommentChange = {
+  field: string; // "comments"
+  value: {
+    id: string; // ID do comentário
+    text?: string;
+    from?: { id: string; username?: string };
+    media?: { id: string; media_product_type?: string };
+    parent_id?: string;
+  };
+};
+
 type IgEntry = {
   id: string; // ID da conta do Instagram que recebeu o evento
   time?: number;
   messaging?: IgMessagingEvent[];
+  changes?: IgCommentChange[];
 };
 
-// Recebe os eventos em tempo real do Instagram (Fase 2: mensagens de
-// Direct). A Meta exige resposta 200 em até 20s, então sempre respondemos
-// "received: true" mesmo se algum item específico falhar ao processar —
-// os detalhes de erro só vão pro log do servidor.
+// Recebe os eventos em tempo real do Instagram: mensagens de Direct (Fase 2)
+// e comentários em posts/reels (Fase 3). A Meta exige resposta 200 em até
+// 20s, então sempre respondemos "received: true" mesmo se algum item
+// específico falhar ao processar — os detalhes de erro só vão pro log do
+// servidor.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
 
   if (body?.object === "instagram" && Array.isArray(body.entry)) {
     try {
-      await Promise.all((body.entry as IgEntry[]).map(processEntry));
+      await Promise.all(
+        (body.entry as IgEntry[]).map(async (entry) => {
+          await processMessagingEntry(entry);
+          await processCommentEntry(entry);
+        })
+      );
     } catch (err) {
       console.error("[instagram/webhook] erro ao processar evento:", err);
     }
@@ -57,7 +75,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ received: true });
 }
 
-async function processEntry(entry: IgEntry) {
+async function processMessagingEntry(entry: IgEntry) {
   if (!entry.messaging?.length) return;
 
   const account = await fetchInstagramAccountByIgUserId(entry.id);
@@ -126,6 +144,65 @@ async function processEntry(entry: IgEntry) {
       });
     } catch (err) {
       console.error("[instagram/webhook] erro ao disparar automação:", err);
+    }
+  }
+}
+
+async function processCommentEntry(entry: IgEntry) {
+  const commentChanges = entry.changes?.filter((c) => c.field === "comments") ?? [];
+  if (!commentChanges.length) return;
+
+  const account = await fetchInstagramAccountByIgUserId(entry.id);
+  if (!account) {
+    console.warn(`[instagram/webhook] comentário pra conta ${entry.id}, que não está conectada no banco`);
+    return;
+  }
+
+  for (const change of commentChanges) {
+    const comment = change.value;
+    if (!comment?.id || !comment.from?.id) continue;
+    // ignora comentários feitos pela própria conta comercial (ex: se um dia
+    // a automação também responder publicamente, isso evita loop)
+    if (comment.from.id === account.igUserId) continue;
+
+    try {
+      const contact = await getOrCreateContact({
+        workspaceId: account.workspaceId,
+        instagramAccountId: account.id,
+        igScopedId: comment.from.id,
+        accessToken: account.accessToken,
+      });
+
+      const conversation = await getOrCreateConversation({
+        workspaceId: account.workspaceId,
+        contactId: contact.id,
+        channel: "comment",
+      });
+
+      await db.insert(messages).values({
+        conversationId: conversation.id,
+        direction: "inbound",
+        sender: "contact",
+        text: comment.text ?? null,
+        igMessageId: comment.id,
+      });
+
+      await db
+        .update(conversations)
+        .set({ updatedAt: new Date(), status: "open", unreadCount: sql`${conversations.unreadCount} + 1` })
+        .where(eq(conversations.id, conversation.id));
+
+      await db.update(contacts).set({ lastInteractionAt: new Date() }).where(eq(contacts.id, contact.id));
+
+      await triggerAutomationsForComment({
+        workspaceId: account.workspaceId,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        commentId: comment.id,
+        commentText: comment.text ?? null,
+      });
+    } catch (err) {
+      console.error("[instagram/webhook] erro ao processar comentário:", err);
     }
   }
 }

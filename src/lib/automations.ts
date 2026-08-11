@@ -28,27 +28,35 @@ function nextNodeId(flow: AutomationFlow, fromId: string, handle?: string) {
   return edge?.target ?? null;
 }
 
-/** Verifica se o gatilho de um fluxo bate com a mensagem recebida. */
-export function matchesTrigger(
-  flow: AutomationFlow,
-  params: { messageText: string | null; isFirstMessage: boolean }
-): boolean {
+type TriggerEvent =
+  | { kind: "dm"; messageText: string | null; isFirstMessage: boolean }
+  | { kind: "comment"; commentText: string | null };
+
+/** Verifica se o gatilho de um fluxo bate com o evento recebido (DM ou comentário). */
+export function matchesTrigger(flow: AutomationFlow, event: TriggerEvent): boolean {
   const trigger = flow.nodes.find((n) => n.type === "trigger");
   if (!trigger || trigger.type !== "trigger") return false;
 
-  if (trigger.data.triggerType === "welcome") return params.isFirstMessage;
-
-  if (trigger.data.triggerType === "keyword") {
-    const keywords = trigger.data.keywords ?? [];
-    if (keywords.length === 0) return false;
-    const text = (params.messageText ?? "").toLowerCase();
-    return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
+  if (event.kind === "dm") {
+    if (trigger.data.triggerType === "welcome") return event.isFirstMessage;
+    if (trigger.data.triggerType === "keyword") {
+      const keywords = trigger.data.keywords ?? [];
+      if (keywords.length === 0) return false;
+      const text = (event.messageText ?? "").toLowerCase();
+      return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
+    }
+    return false;
   }
 
-  return false;
+  // event.kind === "comment"
+  if (trigger.data.triggerType !== "comment") return false;
+  const keywords = trigger.data.keywords ?? [];
+  if (keywords.length === 0) return false;
+  const text = (event.commentText ?? "").toLowerCase();
+  return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
 }
 
-/** Acha, entre as automações ativas do workspace, a primeira cujo gatilho bate — e a inicia. */
+/** Acha, entre as automações ativas do workspace, a primeira cujo gatilho bate com a mensagem de Direct — e a inicia. */
 export async function triggerAutomationsForMessage(params: {
   workspaceId: string;
   contactId: string;
@@ -65,9 +73,33 @@ export async function triggerAutomationsForMessage(params: {
 
   for (const automation of active) {
     const flow = automation.flow as AutomationFlow;
-    if (matchesTrigger(flow, { messageText, isFirstMessage })) {
+    if (matchesTrigger(flow, { kind: "dm", messageText, isFirstMessage })) {
       await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId });
       // só dispara a primeira automação que bater, pra não mandar respostas duplicadas
+      break;
+    }
+  }
+}
+
+/** Igual à de cima, mas pra comentários em posts/reels. */
+export async function triggerAutomationsForComment(params: {
+  workspaceId: string;
+  contactId: string;
+  conversationId: string;
+  commentId: string;
+  commentText: string | null;
+}) {
+  const { workspaceId, contactId, conversationId, commentId, commentText } = params;
+
+  const active = await db
+    .select()
+    .from(automations)
+    .where(and(eq(automations.workspaceId, workspaceId), eq(automations.status, "active")));
+
+  for (const automation of active) {
+    const flow = automation.flow as AutomationFlow;
+    if (matchesTrigger(flow, { kind: "comment", commentText })) {
+      await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId, commentId });
       break;
     }
   }
@@ -78,14 +110,22 @@ export async function startAutomationRun(params: {
   flow: AutomationFlow;
   contactId: string;
   conversationId: string;
+  commentId?: string;
 }) {
-  const { automationId, flow, contactId, conversationId } = params;
+  const { automationId, flow, contactId, conversationId, commentId } = params;
   const trigger = flow.nodes.find((n) => n.type === "trigger");
   const firstStepId = trigger ? nextNodeId(flow, trigger.id) : null;
 
   const [run] = await db
     .insert(automationRuns)
-    .values({ automationId, contactId, conversationId, status: "running", nextNodeId: firstStepId })
+    .values({
+      automationId,
+      contactId,
+      conversationId,
+      status: "running",
+      nextNodeId: firstStepId,
+      commentId: commentId ?? null,
+    })
     .returning();
 
   await db.insert(automationLogs).values({ automationId, contactId, status: "triggered" });
@@ -157,6 +197,11 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
     try {
       if (node.type === "sendMessage") {
         await executeSendMessage(current, node.data);
+        if (current.commentId) {
+          // só vale usar o comment_id uma vez (resposta privada ao comentário)
+          await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
+          current = { ...current, commentId: null };
+        }
         current = await persistNext(current, nextNodeId(flow, node.id));
         continue;
       }
@@ -221,6 +266,7 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
   const result = await sendInstagramMessage({
     accessToken: account.accessToken,
     recipientId: contact.igScopedId,
+    commentId: run.commentId ?? undefined,
     text: data.text,
   });
 

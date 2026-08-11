@@ -5,9 +5,10 @@ export type Position = { x: number; y: number };
 
 export type TriggerNodeData = {
   label?: string;
-  triggerType: "keyword" | "welcome";
-  // usado só quando triggerType === "keyword" — dispara se a mensagem
-  // recebida contiver qualquer uma dessas palavras (sem diferenciar maiúscula/minúscula)
+  triggerType: "keyword" | "welcome" | "comment";
+  // usado quando triggerType é "keyword" (mensagem de Direct) ou "comment"
+  // (comentário em post/reels) — dispara se o texto contiver qualquer uma
+  // dessas palavras (sem diferenciar maiúscula/minúscula)
   keywords?: string[];
 };
 
