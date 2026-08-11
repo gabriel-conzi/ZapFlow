@@ -5,12 +5,17 @@ import { getCurrentWorkspace } from "@/lib/workspace";
 import { db } from "@/db";
 import { instagramAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { Camera, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, BellRing } from "lucide-react";
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig_connected?: string; ig_error?: string }>;
+  searchParams: Promise<{
+    ig_connected?: string;
+    ig_error?: string;
+    ig_resubscribed?: string;
+    ig_subscribe_error?: string;
+  }>;
 }) {
   const params = await searchParams;
   const workspace = await getCurrentWorkspace();
@@ -33,6 +38,18 @@ export default async function SettingsPage({
           <AlertCircle size={16} /> Não foi possível conectar: {decodeURIComponent(params.ig_error)}
         </div>
       )}
+      {params.ig_resubscribed && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <CheckCircle2 size={16} /> Notificações reativadas. Novas mensagens já devem começar a chegar
+          na Inbox.
+        </div>
+      )}
+      {params.ig_subscribe_error && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={16} /> Não foi possível ativar as notificações:{" "}
+          {decodeURIComponent(params.ig_subscribe_error)}
+        </div>
+      )}
 
       <Card className="mt-6 max-w-xl">
         <CardHeader>
@@ -46,14 +63,20 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {accounts.map((acc) => (
-            <div key={acc.id} className="flex items-center justify-between rounded-md border p-3">
+            <div key={acc.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
               <div>
                 <p className="text-sm font-medium">@{acc.igUsername ?? acc.igUserId}</p>
-                <p className="text-xs text-muted-foreground">via página {acc.pageName}</p>
               </div>
-              <Badge variant={acc.connected ? "success" : "secondary"}>
-                {acc.connected ? "Conectado" : "Desconectado"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <a href={`/api/instagram/resubscribe?accountId=${acc.id}`}>
+                  <Button variant="outline" size="sm">
+                    <BellRing size={14} /> Reativar notificações
+                  </Button>
+                </a>
+                <Badge variant={acc.connected ? "success" : "secondary"}>
+                  {acc.connected ? "Conectado" : "Desconectado"}
+                </Badge>
+              </div>
             </div>
           ))}
 

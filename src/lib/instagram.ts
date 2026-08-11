@@ -106,6 +106,28 @@ export async function getOrCreateConversation(params: {
 }
 
 /**
+ * Assina a conta do Instagram pra receber webhooks de mensagens ("messages").
+ * Isso é DIFERENTE de configurar o webhook no painel da Meta: lá você registra
+ * a URL/campos a nível do app, mas cada conta do Instagram também precisa ser
+ * inscrita individualmente (via API, com o token dela) pra Meta começar a
+ * mandar os eventos de verdade. Sem isso, o webhook fica "configurado" mas
+ * nunca recebe nada. Chamamos isso automaticamente ao conectar a conta —
+ * e dá pra chamar de novo a qualquer momento, é seguro repetir.
+ */
+export async function subscribeInstagramAccount(params: { accessToken: string; igUserId: string }) {
+  const { accessToken, igUserId } = params;
+  const res = await fetch(
+    `https://graph.instagram.com/${GRAPH_VERSION}/${igUserId}/subscribed_apps?subscribed_fields=messages&access_token=${accessToken}`,
+    { method: "POST" }
+  );
+  const data = await res.json();
+  if (data.error) {
+    throw new Error(data.error.message ?? "Erro ao assinar webhooks da conta");
+  }
+  return data as { success?: boolean };
+}
+
+/**
  * Envia uma mensagem de Direct pro contato via Graph API do Instagram.
  * Lança erro se a Meta recusar (token vencido, fora da janela de 24h, etc.)
  * — quem chamar deve tratar o erro e avisar o usuário.

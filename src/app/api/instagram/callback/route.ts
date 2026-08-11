@@ -2,6 +2,7 @@
 import { db } from "@/db";
 import { instagramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { subscribeInstagramAccount } from "@/lib/instagram";
 
 // Troca o "code" do OAuth (login direto do Instagram) por um token de longa
 // duração e salva a conexão no banco. Fluxo da API do Instagram com login do
@@ -72,6 +73,21 @@ export async function GET(req: Request) {
       await db.update(instagramAccounts).set(values).where(eq(instagramAccounts.id, existing.id));
     } else {
       await db.insert(instagramAccounts).values(values);
+    }
+
+    // Configurar os campos do webhook no painel da Meta registra a URL a
+    // nível do APP, mas cada conta do Instagram também precisa ser inscrita
+    // individualmente pra Meta de fato começar a mandar os eventos. Se essa
+    // chamada falhar, a conta ainda fica "conectada" (o token é válido), só
+    // avisamos que as mensagens em tempo real podem não chegar.
+    try {
+      await subscribeInstagramAccount({ accessToken: longData.access_token, igUserId });
+    } catch (subErr) {
+      console.error("[instagram/callback] falha ao assinar webhooks da conta:", subErr);
+      const message = subErr instanceof Error ? subErr.message : "Erro desconhecido";
+      return NextResponse.redirect(
+        `${origin}/settings?ig_connected=1&ig_subscribe_error=${encodeURIComponent(message)}`
+      );
     }
 
     return NextResponse.redirect(`${origin}/settings?ig_connected=1`);
