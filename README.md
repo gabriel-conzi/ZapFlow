@@ -137,6 +137,33 @@ permissões sem esperar aprovação.
 3. Token de verificação: o mesmo valor que você colocou em `META_WEBHOOK_VERIFY_TOKEN` no `.env`.
 4. Inscreva-se nos campos `messages` e `comments`.
 
+## Configurar a conexão com o Facebook Messenger (Meta Developer)
+
+Igual ao Instagram: como o uso é só seu, contas com papel no seu próprio app usam a integração
+sem precisar de revisão da Meta.
+
+1. No mesmo app da Meta que você já criou pro Instagram, adicione o produto **"Facebook Login for
+   Business"** (Painel do app → "Adicionar produto").
+2. Em "Facebook Login for Business → Configurações", adicione em **URIs de redirecionamento OAuth
+   válidos**: `http://localhost:3000/api/facebook/callback` (e depois a versão com o domínio do
+   Netlify).
+3. Preencha `FACEBOOK_APP_ID` e `FACEBOOK_APP_SECRET` no `.env` — pode usar os **mesmos valores**
+   de `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`, já que é o mesmo app.
+4. Adicione você mesmo como **testador** do app (Papéis → Testadores) usando a conta do Facebook
+   que administra sua Página.
+5. Com o `.env` preenchido, reinicie `npm run dev`, vá em **Configurações** no painel do ZapFlow e
+   clique em "Conectar Facebook".
+
+### Configurar o Webhook do Facebook
+
+1. No painel do app da Meta: produto "Webhooks" → escolha o objeto **"Página"**.
+2. URL de callback: `https://SEU-DOMINIO-NETLIFY/api/facebook/webhook`
+3. Token de verificação: o mesmo valor de `META_WEBHOOK_VERIFY_TOKEN` no `.env`.
+4. Inscreva-se nos campos `messages` e `feed`.
+5. Depois de conectar uma Página pelo botão "Conectar Facebook", o ZapFlow já assina os webhooks
+   dela automaticamente — se as mensagens não chegarem, use o botão "Reativar notificações" na
+   página de Configurações.
+
 ## Publicar no Netlify
 
 1. Suba o projeto pro GitHub primeiro (veja a seção abaixo).

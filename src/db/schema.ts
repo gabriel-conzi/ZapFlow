@@ -116,6 +116,20 @@ export const instagramAccounts = pgTable("instagram_accounts", {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PÃGINAS DO FACEBOOK CONECTADAS (Messenger + comentÃ¡rios em posts)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const facebookPages = pgTable("facebook_pages", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  pageId: text("page_id").notNull(), // ID da PÃ¡gina do Facebook
+  pageName: text("page_name"),
+  accessToken: text("access_token").notNull(), // token de PÃ¡gina, longa duraÃ§Ã£o
+  connected: boolean("connected").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONTATOS / CRM
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -123,7 +137,10 @@ export const contacts = pgTable("contacts", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   instagramAccountId: text("instagram_account_id").references(() => instagramAccounts.id, { onDelete: "cascade" }),
-  igScopedId: text("ig_scoped_id").notNull(), // ID do usuÃ¡rio do IG (escopado por conta)
+  facebookPageId: text("facebook_page_id").references(() => facebookPages.id, { onDelete: "cascade" }),
+  // "instagram" | "facebook" — diz qual das duas colunas acima vale pra esse contato
+  platform: text("platform").notNull().default("instagram"),
+  igScopedId: text("ig_scoped_id").notNull(), // ID da pessoa, escopado por conta/PÃ¡gina (serve pros dois canais)
   name: text("name"),
   username: text("username"),
   profilePicUrl: text("profile_pic_url"),

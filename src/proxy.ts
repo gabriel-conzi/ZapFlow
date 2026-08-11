@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/api/auth",
   "/api/register",
   "/api/instagram/webhook",
+  "/api/facebook/webhook",
   "/privacidade",
   "/termos",
   "/api/automations/resume",

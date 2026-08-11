@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
+import { fetchFacebookPageByPageId, getOrCreateFacebookContact } from "@/lib/facebook";
+import { getOrCreateConversation } from "@/lib/instagram";
 import { handleOptControlKeyword, triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
-// Meta Developer (Products → Webhooks → Instagram). Veja o README.
+// Meta Developer (Products → Webhooks → Page).
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-type IgMessagingEvent = {
+type FbMessagingEvent = {
   sender: { id: string };
   recipient: { id: string };
   timestamp?: number;
@@ -31,75 +32,73 @@ type IgMessagingEvent = {
   };
 };
 
-type IgCommentChange = {
-  field: string; // "comments"
+type FbFeedChange = {
+  field: string; // "feed"
   value: {
-    id: string; // ID do comentário
-    text?: string;
-    from?: { id: string; username?: string };
-    media?: { id: string; media_product_type?: string };
-    parent_id?: string;
+    item?: string; // "comment" | "post" | "reaction" | ...
+    verb?: string; // "add" | "edited" | "remove"
+    comment_id?: string;
+    post_id?: string;
+    message?: string;
+    from?: { id: string; name?: string };
   };
 };
 
-type IgEntry = {
-  id: string; // ID da conta do Instagram que recebeu o evento
+type FbEntry = {
+  id: string; // ID da Página que recebeu o evento
   time?: number;
-  messaging?: IgMessagingEvent[];
-  changes?: IgCommentChange[];
+  messaging?: FbMessagingEvent[];
+  changes?: FbFeedChange[];
 };
 
-// Recebe os eventos em tempo real do Instagram: mensagens de Direct (Fase 2)
-// e comentários em posts/reels (Fase 3). A Meta exige resposta 200 em até
-// 20s, então sempre respondemos "received: true" mesmo se algum item
-// específico falhar ao processar — os detalhes de erro só vão pro log do
-// servidor.
+// Recebe os eventos em tempo real da Página do Facebook: mensagens de
+// Messenger e comentários em posts. Mesmo contrato do webhook do Instagram
+// (resposta 200 rápida, erros só vão pro log).
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
 
-  if (body?.object === "instagram" && Array.isArray(body.entry)) {
+  if (body?.object === "page" && Array.isArray(body.entry)) {
     try {
       await Promise.all(
-        (body.entry as IgEntry[]).map(async (entry) => {
+        (body.entry as FbEntry[]).map(async (entry) => {
           await processMessagingEntry(entry);
-          await processCommentEntry(entry);
+          await processFeedEntry(entry);
         })
       );
     } catch (err) {
-      console.error("[instagram/webhook] erro ao processar evento:", err);
+      console.error("[facebook/webhook] erro ao processar evento:", err);
     }
   } else if (body) {
-    console.log("[instagram/webhook] evento ignorado (formato não tratado):", JSON.stringify(body));
+    console.log("[facebook/webhook] evento ignorado (formato não tratado):", JSON.stringify(body));
   }
 
   return NextResponse.json({ received: true });
 }
 
-async function processMessagingEntry(entry: IgEntry) {
+async function processMessagingEntry(entry: FbEntry) {
   if (!entry.messaging?.length) return;
 
-  const account = await fetchInstagramAccountByIgUserId(entry.id);
-  if (!account) {
-    console.warn(`[instagram/webhook] evento pra conta ${entry.id}, que não está conectada no banco`);
+  const page = await fetchFacebookPageByPageId(entry.id);
+  if (!page) {
+    console.warn(`[facebook/webhook] evento pra Página ${entry.id}, que não está conectada no banco`);
     return;
   }
 
   for (const event of entry.messaging) {
     const msg = event.message;
     // "is_echo" é a confirmação da própria Meta de uma mensagem que NÓS
-    // enviamos (via /api/instagram/send). Já salvamos ela na hora de
-    // enviar, então ignoramos aqui pra não duplicar.
+    // enviamos — já salva na hora de enviar, ignora aqui pra não duplicar.
     if (!msg || msg.is_echo) continue;
 
-    const contact = await getOrCreateContact({
-      workspaceId: account.workspaceId,
-      instagramAccountId: account.id,
-      igScopedId: event.sender.id,
-      accessToken: account.accessToken,
+    const contact = await getOrCreateFacebookContact({
+      workspaceId: page.workspaceId,
+      facebookPageId: page.id,
+      psid: event.sender.id,
+      accessToken: page.accessToken,
     });
 
     const conversation = await getOrCreateConversation({
-      workspaceId: account.workspaceId,
+      workspaceId: page.workspaceId,
       contactId: contact.id,
       channel: "dm",
     });
@@ -117,25 +116,19 @@ async function processMessagingEntry(entry: IgEntry) {
 
     await db
       .update(conversations)
-      .set({
-        updatedAt: new Date(),
-        status: "open",
-        unreadCount: sql`${conversations.unreadCount} + 1`,
-      })
+      .set({ updatedAt: new Date(), status: "open", unreadCount: sql`${conversations.unreadCount} + 1` })
       .where(eq(conversations.id, conversation.id));
 
     await db.update(contacts).set({ lastInteractionAt: new Date() }).where(eq(contacts.id, contact.id));
 
-    // dispara automações (palavra-chave / boas-vindas) depois de salvar a
-    // mensagem — se der erro, não deve derrubar o recebimento da mensagem em si
     try {
       const handled = await handleOptControlKeyword({
         contactId: contact.id,
         conversationId: conversation.id,
         text: msg.text ?? null,
-        accessToken: account.accessToken,
+        accessToken: page.accessToken,
         recipientId: contact.igScopedId,
-        platform: "instagram",
+        platform: "facebook",
       });
 
       if (!handled) {
@@ -146,7 +139,7 @@ async function processMessagingEntry(entry: IgEntry) {
         const isFirstMessage = existingMessages.length === 1;
 
         await triggerAutomationsForMessage({
-          workspaceId: account.workspaceId,
+          workspaceId: page.workspaceId,
           contactId: contact.id,
           conversationId: conversation.id,
           messageText: msg.text ?? null,
@@ -154,38 +147,41 @@ async function processMessagingEntry(entry: IgEntry) {
         });
       }
     } catch (err) {
-      console.error("[instagram/webhook] erro ao disparar automação:", err);
+      console.error("[facebook/webhook] erro ao disparar automação:", err);
     }
   }
 }
 
-async function processCommentEntry(entry: IgEntry) {
-  const commentChanges = entry.changes?.filter((c) => c.field === "comments") ?? [];
-  if (!commentChanges.length) return;
+async function processFeedEntry(entry: FbEntry) {
+  const feedChanges = entry.changes?.filter((c) => c.field === "feed") ?? [];
+  if (!feedChanges.length) return;
 
-  const account = await fetchInstagramAccountByIgUserId(entry.id);
-  if (!account) {
-    console.warn(`[instagram/webhook] comentário pra conta ${entry.id}, que não está conectada no banco`);
+  const page = await fetchFacebookPageByPageId(entry.id);
+  if (!page) {
+    console.warn(`[facebook/webhook] comentário pra Página ${entry.id}, que não está conectada no banco`);
     return;
   }
 
-  for (const change of commentChanges) {
-    const comment = change.value;
-    if (!comment?.id || !comment.from?.id) continue;
-    // ignora comentários feitos pela própria conta comercial (ex: se um dia
-    // a automação também responder publicamente, isso evita loop)
-    if (comment.from.id === account.igUserId) continue;
+  for (const change of feedChanges) {
+    const item = change.value;
+    // só nos interessa comentário novo — ignora edições, remoções, curtidas,
+    // posts novos etc.
+    if (item.item !== "comment" || item.verb !== "add") continue;
+    if (!item.comment_id || !item.from?.id) continue;
+    // ignora comentários feitos pela própria Página (evita loop se um dia a
+    // automação também responder publicamente)
+    if (item.from.id === page.pageId) continue;
 
     try {
-      const contact = await getOrCreateContact({
-        workspaceId: account.workspaceId,
-        instagramAccountId: account.id,
-        igScopedId: comment.from.id,
-        accessToken: account.accessToken,
+      const contact = await getOrCreateFacebookContact({
+        workspaceId: page.workspaceId,
+        facebookPageId: page.id,
+        psid: item.from.id,
+        accessToken: page.accessToken,
       });
 
       const conversation = await getOrCreateConversation({
-        workspaceId: account.workspaceId,
+        workspaceId: page.workspaceId,
         contactId: contact.id,
         channel: "comment",
       });
@@ -194,8 +190,8 @@ async function processCommentEntry(entry: IgEntry) {
         conversationId: conversation.id,
         direction: "inbound",
         sender: "contact",
-        text: comment.text ?? null,
-        igMessageId: comment.id,
+        text: item.message ?? null,
+        igMessageId: item.comment_id,
       });
 
       await db
@@ -208,25 +204,25 @@ async function processCommentEntry(entry: IgEntry) {
       const handled = await handleOptControlKeyword({
         contactId: contact.id,
         conversationId: conversation.id,
-        text: comment.text ?? null,
-        accessToken: account.accessToken,
+        text: item.message ?? null,
+        accessToken: page.accessToken,
         recipientId: contact.igScopedId,
-        commentId: comment.id,
-        platform: "instagram",
+        commentId: item.comment_id,
+        platform: "facebook",
       });
 
       if (!handled) {
         await triggerAutomationsForComment({
-          workspaceId: account.workspaceId,
+          workspaceId: page.workspaceId,
           contactId: contact.id,
           conversationId: conversation.id,
-          commentId: comment.id,
-          commentText: comment.text ?? null,
-          mediaId: comment.media?.id ?? null,
+          commentId: item.comment_id,
+          commentText: item.message ?? null,
+          mediaId: item.post_id ?? null,
         });
       }
     } catch (err) {
-      console.error("[instagram/webhook] erro ao processar comentário:", err);
+      console.error("[facebook/webhook] erro ao processar comentário:", err);
     }
   }
 }

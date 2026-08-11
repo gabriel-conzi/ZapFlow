@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts, conversations, instagramAccounts, messages } from "@/db/schema";
+import { contacts, conversations, facebookPages, instagramAccounts, messages } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { sendInstagramMessage } from "@/lib/instagram";
+import { sendFacebookMessage } from "@/lib/facebook";
 
-// Envia uma resposta manual (digitada na Inbox) pro contato no Direct do
-// Instagram, e salva a mensagem enviada no histórico da conversa.
+// Envia uma resposta manual (digitada na Inbox) pro contato — Direct do
+// Instagram ou Messenger do Facebook, dependendo da plataforma do contato —
+// e salva a mensagem enviada no histórico da conversa.
 export async function POST(req: Request) {
   const workspace = await getCurrentWorkspace();
   if (!workspace) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -26,22 +28,33 @@ export async function POST(req: Request) {
   if (!conversation) return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
 
   const [contact] = await db.select().from(contacts).where(eq(contacts.id, conversation.contactId)).limit(1);
-  if (!contact?.instagramAccountId) {
-    return NextResponse.json({ error: "Contato sem conta do Instagram vinculada" }, { status: 400 });
-  }
+  if (!contact) return NextResponse.json({ error: "Contato não encontrado" }, { status: 404 });
 
-  const [account] = await db
-    .select()
-    .from(instagramAccounts)
-    .where(eq(instagramAccounts.id, contact.instagramAccountId))
-    .limit(1);
-  if (!account) {
-    return NextResponse.json({ error: "Conta do Instagram não encontrada" }, { status: 400 });
+  let accessToken: string;
+  if (contact.platform === "facebook") {
+    if (!contact.facebookPageId) {
+      return NextResponse.json({ error: "Contato sem Página do Facebook vinculada" }, { status: 400 });
+    }
+    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, contact.facebookPageId)).limit(1);
+    if (!page) return NextResponse.json({ error: "Página do Facebook não encontrada" }, { status: 400 });
+    accessToken = page.accessToken;
+  } else {
+    if (!contact.instagramAccountId) {
+      return NextResponse.json({ error: "Contato sem conta do Instagram vinculada" }, { status: 400 });
+    }
+    const [account] = await db
+      .select()
+      .from(instagramAccounts)
+      .where(eq(instagramAccounts.id, contact.instagramAccountId))
+      .limit(1);
+    if (!account) return NextResponse.json({ error: "Conta do Instagram não encontrada" }, { status: 400 });
+    accessToken = account.accessToken;
   }
 
   try {
-    const result = await sendInstagramMessage({
-      accessToken: account.accessToken,
+    const sendFn = contact.platform === "facebook" ? sendFacebookMessage : sendInstagramMessage;
+    const result = await sendFn({
+      accessToken,
       recipientId: contact.igScopedId,
       text,
     });

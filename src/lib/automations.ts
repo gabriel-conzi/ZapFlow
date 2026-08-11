@@ -6,15 +6,33 @@ import {
   contactTags,
   contacts,
   conversations,
+  facebookPages,
   instagramAccounts,
   messages,
   tags,
 } from "@/db/schema";
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
+import { sendFacebookMessage } from "@/lib/facebook";
 import type { AutomationFlow, DelayNodeData, AddTagNodeData, ConditionNodeData, SendMessageNodeData } from "@/lib/automation-types";
 
 type RunRow = typeof automationRuns.$inferSelect;
+type Platform = "instagram" | "facebook";
+
+/** Escolhe a função de envio certa pra plataforma do contato. */
+function sendPlatformMessage(
+  platform: Platform,
+  params: {
+    accessToken: string;
+    recipientId?: string;
+    commentId?: string;
+    text: string;
+    buttonText?: string;
+    buttonUrl?: string;
+  }
+) {
+  return platform === "facebook" ? sendFacebookMessage(params) : sendInstagramMessage(params);
+}
 
 function findNode(flow: AutomationFlow, id: string | null) {
   if (!id) return null;
@@ -84,6 +102,7 @@ export async function handleOptControlKeyword(params: {
   accessToken: string;
   recipientId: string;
   commentId?: string;
+  platform: Platform;
 }): Promise<boolean> {
   const normalized = normalizeControlText(params.text);
   if (!normalized) return false;
@@ -109,7 +128,7 @@ export async function handleOptControlKeyword(params: {
     : "Prontinho, você voltou a receber nossas mensagens automáticas. 🎉";
 
   try {
-    const result = await sendInstagramMessage({
+    const result = await sendPlatformMessage(params.platform, {
       accessToken: params.accessToken,
       recipientId: params.recipientId,
       commentId: params.commentId,
@@ -342,17 +361,27 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
   if (!data.text?.trim()) return; // nó de mensagem vazio: não faz nada, mas não quebra o fluxo
 
   const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
-  if (!contact?.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
+  if (!contact) throw new Error("Contato não encontrado");
 
-  const [account] = await db
-    .select()
-    .from(instagramAccounts)
-    .where(eq(instagramAccounts.id, contact.instagramAccountId))
-    .limit(1);
-  if (!account) throw new Error("Conta do Instagram não encontrada");
+  let accessToken: string;
+  if (contact.platform === "facebook") {
+    if (!contact.facebookPageId) throw new Error("Contato sem Página do Facebook vinculada");
+    const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, contact.facebookPageId)).limit(1);
+    if (!page) throw new Error("Página do Facebook não encontrada");
+    accessToken = page.accessToken;
+  } else {
+    if (!contact.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
+    const [account] = await db
+      .select()
+      .from(instagramAccounts)
+      .where(eq(instagramAccounts.id, contact.instagramAccountId))
+      .limit(1);
+    if (!account) throw new Error("Conta do Instagram não encontrada");
+    accessToken = account.accessToken;
+  }
 
-  const result = await sendInstagramMessage({
-    accessToken: account.accessToken,
+  const result = await sendPlatformMessage(contact.platform === "facebook" ? "facebook" : "instagram", {
+    accessToken,
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,
     text: data.text,
