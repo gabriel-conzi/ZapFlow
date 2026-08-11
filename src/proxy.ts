@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/instagram/webhook",
   "/privacidade",
   "/termos",
+  "/api/automations/resume",
 ];
 
 export default auth((req) => {

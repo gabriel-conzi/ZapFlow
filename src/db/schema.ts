@@ -194,9 +194,25 @@ export const automationLogs = pgTable("automation_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   automationId: text("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
   contactId: text("contact_id").references(() => contacts.id, { onDelete: "set null" }),
-  status: text("status").notNull(), // triggered | completed | failed
+  status: text("status").notNull(), // triggered | step | completed | failed
   detail: text("detail"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Estado de uma execução de automação pra um contato específico. Existe
+// separado do automationLogs (que é só histórico/auditoria) porque uma
+// automação pode ficar "pausada" num nó de espera por horas/dias — esse
+// registro é o que a função agendada usa pra saber o que precisa continuar.
+export const automationRuns = pgTable("automation_runs", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  automationId: text("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
+  contactId: text("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("running"), // running | waiting | completed | failed
+  nextNodeId: text("next_node_id"), // próximo nó do fluxo a executar; null = terminou
+  resumeAt: timestamp("resume_at"), // preenchido só quando status = "waiting"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

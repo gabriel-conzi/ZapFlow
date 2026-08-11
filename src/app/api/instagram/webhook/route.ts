@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
+import { triggerAutomationsForMessage } from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
 // Meta Developer (Products → Webhooks → Instagram). Veja o README.
@@ -106,5 +107,25 @@ async function processEntry(entry: IgEntry) {
       .where(eq(conversations.id, conversation.id));
 
     await db.update(contacts).set({ lastInteractionAt: new Date() }).where(eq(contacts.id, contact.id));
+
+    // dispara automações (palavra-chave / boas-vindas) depois de salvar a
+    // mensagem — se der erro, não deve derrubar o recebimento da mensagem em si
+    try {
+      const existingMessages = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(eq(messages.conversationId, conversation.id));
+      const isFirstMessage = existingMessages.length === 1;
+
+      await triggerAutomationsForMessage({
+        workspaceId: account.workspaceId,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        messageText: msg.text ?? null,
+        isFirstMessage,
+      });
+    } catch (err) {
+      console.error("[instagram/webhook] erro ao disparar automação:", err);
+    }
   }
 }

@@ -1,0 +1,139 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, Plus, Trash2, Workflow } from "lucide-react";
+import type { AutomationFlow } from "@/lib/automation-types";
+
+type AutomationRow = {
+  id: string;
+  name: string;
+  status: string;
+  triggerType: string;
+  flow: unknown;
+  updatedAt: string;
+};
+
+const statusLabel: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
+  active: { label: "Ativa", variant: "success" },
+  paused: { label: "Pausada", variant: "secondary" },
+  draft: { label: "Rascunho", variant: "outline" },
+};
+
+function triggerSummary(flow: unknown) {
+  const f = flow as AutomationFlow;
+  const trigger = f?.nodes?.find((n) => n.type === "trigger");
+  if (!trigger || trigger.type !== "trigger") return "Sem gatilho configurado";
+  if (trigger.data.triggerType === "welcome") return "Gatilho: primeira mensagem";
+  const keywords = trigger.data.keywords ?? [];
+  return keywords.length ? `Gatilho: "${keywords.join(", ")}"` : "Gatilho: palavra-chave (nenhuma definida)";
+}
+
+export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
+  const router = useRouter();
+  const [automations, setAutomations] = useState(initial);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Nova automação" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao criar automação");
+      router.push(`/automations/${data.automation.id}`);
+    } catch {
+      setCreating(false);
+    }
+  }
+
+  async function handleStatusChange(id: string, status: string) {
+    setAutomations((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    await fetch(`/api/automations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async function handleDelete(id: string) {
+    setDeletingId(id);
+    try {
+      await fetch(`/api/automations/${id}`, { method: "DELETE" });
+      setAutomations((prev) => prev.filter((a) => a.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex justify-end">
+        <Button onClick={handleCreate} disabled={creating}>
+          {creating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+          Nova automação
+        </Button>
+      </div>
+
+      {automations.length === 0 ? (
+        <Card className="mt-6">
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
+            <Workflow size={28} />
+            <p className="max-w-sm text-sm">
+              Nenhuma automação ainda. Crie uma pra responder automaticamente por palavra-chave ou
+              na primeira mensagem de um contato.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="mt-6 flex flex-col gap-2">
+          {automations.map((automation) => {
+            const status = statusLabel[automation.status] ?? statusLabel.draft;
+            return (
+              <Card key={automation.id}>
+                <CardContent className="flex items-center justify-between gap-3 py-4">
+                  <Link href={`/automations/${automation.id}`} className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium hover:underline">{automation.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{triggerSummary(automation.flow)}</p>
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <select
+                      value={automation.status}
+                      onChange={(e) => handleStatusChange(automation.id, e.target.value)}
+                      className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                    >
+                      <option value="draft">Rascunho</option>
+                      <option value="active">Ativa</option>
+                      <option value="paused">Pausada</option>
+                    </select>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(automation.id)}
+                      disabled={deletingId === automation.id}
+                    >
+                      {deletingId === automation.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
