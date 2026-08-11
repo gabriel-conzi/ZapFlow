@@ -142,17 +142,35 @@ permissões sem esperar aprovação.
 Igual ao Instagram: como o uso é só seu, contas com papel no seu próprio app usam a integração
 sem precisar de revisão da Meta.
 
+**Atenção:** se suas Páginas do Facebook ficam dentro de um **Portfólio Empresarial** (Business
+Portfolio) — caso comum quando você já usa o Gerenciador de Negócios — o método simples de OAuth
+(`scope`) não enxerga essas Páginas e dá erro "Nenhuma Página encontrada". Por isso os passos
+abaixo usam uma **Configuration**, que é o jeito correto de acessar Páginas de um Portfólio.
+
 1. No mesmo app da Meta que você já criou pro Instagram, adicione o produto **"Facebook Login for
    Business"** (Painel do app → "Adicionar produto").
-2. Em "Facebook Login for Business → Configurações", adicione em **URIs de redirecionamento OAuth
-   válidos**: `http://localhost:3000/api/facebook/callback` (e depois a versão com o domínio do
-   Netlify).
-3. Preencha `FACEBOOK_APP_ID` e `FACEBOOK_APP_SECRET` no `.env` — pode usar os **mesmos valores**
-   de `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`, já que é o mesmo app.
+2. Em "Facebook Login for Business → Configurações" (a tela de baixo, chamada **"Configurações"**
+   dentro do menu do produto — tem outra parecida chamada "Configurações" no app inteiro, não é
+   essa), adicione em **URIs de redirecionamento OAuth válidos**:
+   `http://localhost:3000/api/facebook/callback` (e depois a versão com o domínio do Netlify).
+3. Preencha `FACEBOOK_APP_ID` e `FACEBOOK_APP_SECRET` no `.env` — **atenção**: são valores
+   **diferentes** de `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`, mesmo sendo o mesmo app. Pegue em
+   Configurações do app → Básico ("ID do aplicativo" / "Chave secreta do aplicativo").
 4. Adicione você mesmo como **testador** do app (Papéis → Testadores) usando a conta do Facebook
    que administra sua Página.
-5. Com o `.env` preenchido, reinicie `npm run dev`, vá em **Configurações** no painel do ZapFlow e
-   clique em "Conectar Facebook".
+5. Ainda em "Login do Facebook para Empresas", clique em **"Configurações"** no menu lateral (a
+   tela de criar Configuration, diferente da tela do passo 2) → **"Criar configuração"**:
+   - Nome: qualquer um (ex.: "ZapFlow Messenger")
+   - Variação de login: Geral
+   - Token de acesso: **"Token de acesso do usuário do sistema"**, expiração **"Nunca"**
+   - Ativos: marque **"Páginas"**
+   - Permissões: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`,
+     `pages_read_engagement`
+   - Clique em "Criar" e copie o **"Identificação da configuração"** (config_id) que aparece.
+6. Cole esse valor em `FACEBOOK_CONFIG_ID` no `.env`.
+7. Com o `.env` preenchido, reinicie `npm run dev`, vá em **Configurações** no painel do ZapFlow e
+   clique em "Conectar Facebook" — na tela da Meta, escolha o **Portfólio Empresarial** correto
+   (o que já contém sua Página) antes de escolher a Página, senão ela é movida pra outro portfólio.
 
 ### Configurar o Webhook do Facebook
 
