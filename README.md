@@ -182,6 +182,39 @@ abaixo usam uma **Configuration**, que é o jeito correto de acessar Páginas de
    dela automaticamente — se as mensagens não chegarem, use o botão "Reativar notificações" na
    página de Configurações.
 
+## Configurar a conexão com o Telegram
+
+Diferente do Instagram/Facebook, não tem tela de login — você cria um bot e cola o token dele no
+ZapFlow. Rápido e sem depender da Meta.
+
+1. No Telegram (celular ou desktop), procure o contato **@BotFather** (é o bot oficial pra criar
+   outros bots) e inicie uma conversa.
+2. Mande o comando `/newbot`.
+3. Escolha um **nome** pro bot (ex.: "Usepostflow Atendimento").
+4. Escolha um **username** que termine em `bot` (ex.: `usepostflow_bot`) — precisa ser único.
+5. O BotFather vai te mandar um **token** (algo como `123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxx`).
+   Copie esse token inteiro.
+6. No painel do ZapFlow, vá em **Configurações** → card **"Telegram"** → cole o token no campo →
+   clique em **Conectar**.
+
+Pronto — o ZapFlow já registra o webhook automaticamente, não precisa configurar mais nada no
+Telegram. Pra testar, procure seu bot pelo username no Telegram e manda uma mensagem.
+
+## Configurar o Assistente de IA (respostas automáticas com OpenAI)
+
+Responde no Direct do Instagram/Facebook quando nenhuma automação por palavra-chave bate com a
+mensagem — não mexe em nada do que já está configurado, só cobre o que sobra.
+
+1. Preencha `OPENAI_API_KEY` no `.env` (e no Netlify) com uma chave da sua conta em
+   [platform.openai.com](https://platform.openai.com/api-keys).
+2. No painel do ZapFlow, vá em **Configurações** → card **"Assistente de IA"**.
+3. Marque **"Ativar respostas com IA"**.
+4. Preencha as instruções (quem é a empresa, produtos, tom de voz, o que ela pode/não pode
+   responder — por exemplo, evite deixar a IA inventar preço ou prazo).
+5. Clique em **Salvar**.
+
+Funciona só no Direct por enquanto (não em comentários públicos).
+
 ## Publicar no Netlify
 
 1. Suba o projeto pro GitHub primeiro (veja a seção abaixo).

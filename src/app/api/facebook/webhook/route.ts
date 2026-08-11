@@ -4,7 +4,12 @@ import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { fetchFacebookPageByPageId, getOrCreateFacebookContact } from "@/lib/facebook";
 import { getOrCreateConversation } from "@/lib/instagram";
-import { handleOptControlKeyword, triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
+import {
+  handleOptControlKeyword,
+  maybeReplyWithAi,
+  triggerAutomationsForComment,
+  triggerAutomationsForMessage,
+} from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
 // Meta Developer (Products → Webhooks → Page).
@@ -138,13 +143,24 @@ async function processMessagingEntry(entry: FbEntry) {
           .where(eq(messages.conversationId, conversation.id));
         const isFirstMessage = existingMessages.length === 1;
 
-        await triggerAutomationsForMessage({
+        const matched = await triggerAutomationsForMessage({
           workspaceId: page.workspaceId,
           contactId: contact.id,
           conversationId: conversation.id,
           messageText: msg.text ?? null,
           isFirstMessage,
         });
+
+        if (!matched) {
+          await maybeReplyWithAi({
+            workspaceId: page.workspaceId,
+            contactId: contact.id,
+            conversationId: conversation.id,
+            accessToken: page.accessToken,
+            recipientId: contact.igScopedId,
+            platform: "facebook",
+          });
+        }
       }
     } catch (err) {
       console.error("[facebook/webhook] erro ao disparar automação:", err);

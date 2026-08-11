@@ -130,6 +130,22 @@ export const facebookPages = pgTable("facebook_pages", {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// BOTS DO TELEGRAM CONECTADOS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const telegramAccounts = pgTable("telegram_accounts", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  botToken: text("bot_token").notNull(), // token dado pelo @BotFather
+  botUsername: text("bot_username"), // ex: "@meubot" â€” sÃ³ pra exibir no painel
+  // token aleatÃ³rio prÃ³prio (nÃ£o Ã© o botToken) usado pra validar que o POST
+  // no webhook realmente veio do Telegram (header X-Telegram-Bot-Api-Secret-Token)
+  webhookSecret: text("webhook_secret").notNull().$defaultFn(() => crypto.randomUUID()),
+  connected: boolean("connected").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONTATOS / CRM
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -138,9 +154,12 @@ export const contacts = pgTable("contacts", {
   workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   instagramAccountId: text("instagram_account_id").references(() => instagramAccounts.id, { onDelete: "cascade" }),
   facebookPageId: text("facebook_page_id").references(() => facebookPages.id, { onDelete: "cascade" }),
-  // "instagram" | "facebook" — diz qual das duas colunas acima vale pra esse contato
+  telegramAccountId: text("telegram_account_id").references(() => telegramAccounts.id, { onDelete: "cascade" }),
+  // "instagram" | "facebook" | "telegram" — diz qual das colunas acima vale pra esse contato
   platform: text("platform").notNull().default("instagram"),
-  igScopedId: text("ig_scoped_id").notNull(), // ID da pessoa, escopado por conta/PÃ¡gina (serve pros dois canais)
+  // ID da pessoa, escopado por conta/PÃ¡gina/bot â€” serve pros trÃªs canais (no
+  // Telegram Ã© o chat_id, como texto)
+  igScopedId: text("ig_scoped_id").notNull(),
   name: text("name"),
   username: text("username"),
   profilePicUrl: text("profile_pic_url"),

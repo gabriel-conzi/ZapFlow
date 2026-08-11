@@ -8,19 +8,22 @@ import {
   conversations,
   facebookPages,
   instagramAccounts,
+  telegramAccounts,
   messages,
   tags,
 } from "@/db/schema";
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
 import { sendFacebookMessage } from "@/lib/facebook";
+import { sendTelegramMessage } from "@/lib/telegram";
+import { generateAiReply } from "@/lib/ai";
 import type { AutomationFlow, DelayNodeData, AddTagNodeData, ConditionNodeData, SendMessageNodeData } from "@/lib/automation-types";
 
 type RunRow = typeof automationRuns.$inferSelect;
-type Platform = "instagram" | "facebook";
+type Platform = "instagram" | "facebook" | "telegram";
 
 /** Escolhe a função de envio certa pra plataforma do contato. */
-function sendPlatformMessage(
+export function sendPlatformMessage(
   platform: Platform,
   params: {
     accessToken: string;
@@ -31,7 +34,9 @@ function sendPlatformMessage(
     buttonUrl?: string;
   }
 ) {
-  return platform === "facebook" ? sendFacebookMessage(params) : sendInstagramMessage(params);
+  if (platform === "facebook") return sendFacebookMessage(params);
+  if (platform === "telegram") return sendTelegramMessage(params);
+  return sendInstagramMessage(params);
 }
 
 function findNode(flow: AutomationFlow, id: string | null) {
@@ -148,14 +153,18 @@ export async function handleOptControlKeyword(params: {
   return true;
 }
 
-/** Acha, entre as automações ativas do workspace, a primeira cujo gatilho bate com a mensagem de Direct — e a inicia. */
+/**
+ * Acha, entre as automações ativas do workspace, a primeira cujo gatilho bate
+ * com a mensagem de Direct — e a inicia. Retorna true se alguma automação foi
+ * disparada (o chamador usa isso pra decidir se cai no fallback de IA).
+ */
 export async function triggerAutomationsForMessage(params: {
   workspaceId: string;
   contactId: string;
   conversationId: string;
   messageText: string | null;
   isFirstMessage: boolean;
-}) {
+}): Promise<boolean> {
   const { workspaceId, contactId, conversationId, messageText, isFirstMessage } = params;
 
   const [contact] = await db
@@ -163,7 +172,7 @@ export async function triggerAutomationsForMessage(params: {
     .from(contacts)
     .where(eq(contacts.id, contactId))
     .limit(1);
-  if (contact?.optedOut) return;
+  if (contact?.optedOut) return false;
 
   const active = await db
     .select()
@@ -175,8 +184,55 @@ export async function triggerAutomationsForMessage(params: {
     if (matchesTrigger(flow, { kind: "dm", messageText, isFirstMessage })) {
       await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId });
       // só dispara a primeira automação que bater, pra não mandar respostas duplicadas
-      break;
+      return true;
     }
+  }
+  return false;
+}
+
+/**
+ * Fallback de IA: chamado quando nenhuma automação bateu com a mensagem
+ * recebida (e o contato não está com opt-out). Gera uma resposta com OpenAI
+ * (se a IA estiver ativada em Configurações) e manda pro contato, salvando
+ * como uma mensagem normal (sender "ai") no histórico da conversa.
+ */
+export async function maybeReplyWithAi(params: {
+  workspaceId: string;
+  contactId: string;
+  conversationId: string;
+  accessToken: string;
+  recipientId: string;
+  platform: Platform;
+}) {
+  const [contact] = await db
+    .select({ optedOut: contacts.optedOut })
+    .from(contacts)
+    .where(eq(contacts.id, params.contactId))
+    .limit(1);
+  if (contact?.optedOut) return;
+
+  const reply = await generateAiReply({ workspaceId: params.workspaceId, conversationId: params.conversationId });
+  if (!reply) return;
+
+  try {
+    const result = await sendPlatformMessage(params.platform, {
+      accessToken: params.accessToken,
+      recipientId: params.recipientId,
+      text: reply,
+    });
+    await db.insert(messages).values({
+      conversationId: params.conversationId,
+      direction: "outbound",
+      sender: "ai",
+      text: reply,
+      igMessageId: result.message_id ?? null,
+    });
+    await db
+      .update(conversations)
+      .set({ updatedAt: new Date(), status: "open" })
+      .where(eq(conversations.id, params.conversationId));
+  } catch (err) {
+    console.error("[automations] erro ao enviar resposta da IA:", err);
   }
 }
 
@@ -364,11 +420,23 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
   if (!contact) throw new Error("Contato não encontrado");
 
   let accessToken: string;
+  let platform: Platform;
   if (contact.platform === "facebook") {
     if (!contact.facebookPageId) throw new Error("Contato sem Página do Facebook vinculada");
     const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, contact.facebookPageId)).limit(1);
     if (!page) throw new Error("Página do Facebook não encontrada");
     accessToken = page.accessToken;
+    platform = "facebook";
+  } else if (contact.platform === "telegram") {
+    if (!contact.telegramAccountId) throw new Error("Contato sem bot do Telegram vinculado");
+    const [account] = await db
+      .select()
+      .from(telegramAccounts)
+      .where(eq(telegramAccounts.id, contact.telegramAccountId))
+      .limit(1);
+    if (!account) throw new Error("Bot do Telegram não encontrado");
+    accessToken = account.botToken;
+    platform = "telegram";
   } else {
     if (!contact.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
     const [account] = await db
@@ -378,9 +446,10 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
       .limit(1);
     if (!account) throw new Error("Conta do Instagram não encontrada");
     accessToken = account.accessToken;
+    platform = "instagram";
   }
 
-  const result = await sendPlatformMessage(contact.platform === "facebook" ? "facebook" : "instagram", {
+  const result = await sendPlatformMessage(platform, {
     accessToken,
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,

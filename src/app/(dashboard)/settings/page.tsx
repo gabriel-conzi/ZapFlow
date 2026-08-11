@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { db } from "@/db";
-import { facebookPages, instagramAccounts } from "@/db/schema";
+import { facebookPages, instagramAccounts, telegramAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { Camera, AlertCircle, CheckCircle2, BellRing, MessageCircle } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, BellRing, MessageCircle, Send } from "lucide-react";
+import { AiSettingsCard } from "@/components/settings/ai-settings-card";
+import { TelegramConnectCard } from "@/components/settings/telegram-connect-card";
 
 export default async function SettingsPage({
   searchParams,
@@ -29,11 +31,16 @@ export default async function SettingsPage({
   const pages = workspace
     ? await db.select().from(facebookPages).where(eq(facebookPages.workspaceId, workspace.id))
     : [];
+  const bots = workspace
+    ? await db.select().from(telegramAccounts).where(eq(telegramAccounts.workspaceId, workspace.id))
+    : [];
 
   return (
     <div className="p-8">
       <h1 className="text-xl font-semibold">Configurações</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Conecte suas contas do Instagram e do Facebook.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Conecte suas contas do Instagram, Facebook e Telegram, e configure o Assistente de IA.
+      </p>
 
       {params.ig_connected && (
         <div className="mt-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -165,6 +172,40 @@ export default async function SettingsPage({
           </p>
         </CardContent>
       </Card>
+
+      <Card className="mt-6 max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Send size={17} /> Telegram
+          </CardTitle>
+          <CardDescription>
+            Conecta um bot do Telegram — dá pra automatizar conversas por lá igual ao Direct do
+            Instagram/Facebook (palavra-chave, boas-vindas, IA de fallback etc.).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {bots.map((bot) => (
+            <div key={bot.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div>
+                <p className="text-sm font-medium">@{bot.botUsername ?? bot.id}</p>
+              </div>
+              <Badge variant={bot.connected ? "success" : "secondary"}>
+                {bot.connected ? "Conectado" : "Desconectado"}
+              </Badge>
+            </div>
+          ))}
+
+          <TelegramConnectCard />
+
+          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+            Não tem um bot ainda? No Telegram, converse com <b>@BotFather</b>, mande{" "}
+            <code>/newbot</code>, siga as instruções e copie o token que ele te der. Veja o passo a
+            passo completo no README.
+          </p>
+        </CardContent>
+      </Card>
+
+      <AiSettingsCard />
     </div>
   );
 }

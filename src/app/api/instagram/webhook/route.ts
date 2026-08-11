@@ -3,7 +3,12 @@ import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
-import { handleOptControlKeyword, triggerAutomationsForComment, triggerAutomationsForMessage } from "@/lib/automations";
+import {
+  handleOptControlKeyword,
+  maybeReplyWithAi,
+  triggerAutomationsForComment,
+  triggerAutomationsForMessage,
+} from "@/lib/automations";
 
 // Verificação inicial exigida pela Meta ao cadastrar a URL do webhook no
 // Meta Developer (Products → Webhooks → Instagram). Veja o README.
@@ -145,13 +150,24 @@ async function processMessagingEntry(entry: IgEntry) {
           .where(eq(messages.conversationId, conversation.id));
         const isFirstMessage = existingMessages.length === 1;
 
-        await triggerAutomationsForMessage({
+        const matched = await triggerAutomationsForMessage({
           workspaceId: account.workspaceId,
           contactId: contact.id,
           conversationId: conversation.id,
           messageText: msg.text ?? null,
           isFirstMessage,
         });
+
+        if (!matched) {
+          await maybeReplyWithAi({
+            workspaceId: account.workspaceId,
+            contactId: contact.id,
+            conversationId: conversation.id,
+            accessToken: account.accessToken,
+            recipientId: contact.igScopedId,
+            platform: "instagram",
+          });
+        }
       }
     } catch (err) {
       console.error("[instagram/webhook] erro ao disparar automação:", err);
