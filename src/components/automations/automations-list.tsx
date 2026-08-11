@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Workflow } from "lucide-react";
+import { Copy, Loader2, Plus, Trash2, Workflow } from "lucide-react";
 import type { AutomationFlow } from "@/lib/automation-types";
 
 type AutomationRow = {
@@ -39,6 +39,7 @@ export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
   const [automations, setAutomations] = useState(initial);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   async function handleCreate() {
     setCreating(true);
@@ -53,6 +54,26 @@ export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
       router.push(`/automations/${data.automation.id}`);
     } catch {
       setCreating(false);
+    }
+  }
+
+  async function handleDuplicate(automation: AutomationRow) {
+    setDuplicatingId(automation.id);
+    try {
+      const res = await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${automation.name} (cópia)`,
+          triggerType: automation.triggerType,
+          flow: automation.flow,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao duplicar automação");
+      router.push(`/automations/${data.automation.id}`);
+    } catch {
+      setDuplicatingId(null);
     }
   }
 
@@ -116,6 +137,19 @@ export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
                       <option value="paused">Pausada</option>
                     </select>
                     <Badge variant={status.variant}>{status.label}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Duplicar automação"
+                      onClick={() => handleDuplicate(automation)}
+                      disabled={duplicatingId === automation.id}
+                    >
+                      {duplicatingId === automation.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

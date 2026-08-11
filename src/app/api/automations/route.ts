@@ -19,23 +19,27 @@ export async function GET() {
   return NextResponse.json({ automations: rows });
 }
 
-// Cria uma automação nova, em rascunho, já com um nó de gatilho padrão —
-// o editor visual abre a partir daqui.
+// Cria uma automação nova. Sem `flow` no corpo, cria em branco com um nó de
+// gatilho padrão (fluxo normal do botão "Nova automação"). Com `flow`
+// (usado pelo botão "Duplicar"), copia o fluxo de outra automação — sempre
+// como rascunho, pra revisar antes de ativar.
 export async function POST(req: Request) {
   const workspace = await getCurrentWorkspace();
   if (!workspace) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
   const name = (body?.name as string | undefined)?.trim() || "Nova automação";
+  const triggerType = (body?.triggerType as string | undefined) || "keyword";
+  const flow = body?.flow ?? emptyFlowWithTrigger(triggerType as "keyword" | "welcome" | "comment");
 
   const [created] = await db
     .insert(automations)
     .values({
       workspaceId: workspace.id,
       name,
-      triggerType: "keyword",
+      triggerType,
       triggerConfig: {},
-      flow: emptyFlowWithTrigger("keyword"),
+      flow,
       status: "draft",
     })
     .returning();

@@ -16,6 +16,7 @@ type MediaItem = {
   mediaType: string | null;
   thumbnailUrl: string | null;
   permalink: string | null;
+  platform: "instagram" | "facebook";
 };
 
 function MediaPicker({
@@ -31,14 +32,30 @@ function MediaPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Busca posts do Instagram e do Facebook em paralelo e junta numa lista só
+  // (cada item com um selo indicando a plataforma). Se uma das duas contas
+  // não estiver conectada, só ignora o erro dela e mostra a outra.
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/instagram/media");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erro ao buscar posts");
-      setItems(data.media);
+      const [igRes, fbRes] = await Promise.all([
+        fetch("/api/instagram/media").then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
+        fetch("/api/facebook/media").then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
+      ]);
+
+      const igItems: MediaItem[] = igRes.ok
+        ? (igRes.d.media as Omit<MediaItem, "platform">[]).map((m) => ({ ...m, platform: "instagram" as const }))
+        : [];
+      const fbItems: MediaItem[] = fbRes.ok
+        ? (fbRes.d.media as Omit<MediaItem, "platform">[]).map((m) => ({ ...m, platform: "facebook" as const }))
+        : [];
+
+      if (!igRes.ok && !fbRes.ok) {
+        throw new Error(igRes.d.error ?? fbRes.d.error ?? "Erro ao buscar posts");
+      }
+
+      setItems([...igItems, ...fbItems]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao buscar posts");
     } finally {
@@ -77,16 +94,21 @@ function MediaPicker({
             <button
               key={m.id}
               type="button"
-              onClick={() => onSelect(m.id, (m.caption ?? "Sem legenda").slice(0, 50))}
+              onClick={() =>
+                onSelect(m.id, `${m.platform === "facebook" ? "[FB] " : "[IG] "}${(m.caption ?? "Sem legenda").slice(0, 45)}`)
+              }
               className="flex items-center gap-2 rounded-md border p-1.5 text-left hover:bg-accent"
             >
               {m.thumbnailUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- miniatura vinda direto da API do Instagram
+                // eslint-disable-next-line @next/next/no-img-element -- miniatura vinda direto da API do Instagram/Facebook
                 <img src={m.thumbnailUrl} alt="" className="size-9 shrink-0 rounded object-cover" />
               ) : (
                 <span className="size-9 shrink-0 rounded bg-muted" />
               )}
-              <span className="line-clamp-2 text-[11px]">{m.caption || "Sem legenda"}</span>
+              <span className="flex-1 line-clamp-2 text-[11px]">{m.caption || "Sem legenda"}</span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                {m.platform === "facebook" ? "FB" : "IG"}
+              </span>
             </button>
           ))}
         </div>
