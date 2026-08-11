@@ -146,6 +146,21 @@ export const telegramAccounts = pgTable("telegram_accounts", {
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CONTAS DE E-MAIL CONECTADAS (Resend)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const emailAccounts = pgTable("email_accounts", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  // endereço remetente, ex: "contato@usepostflow.com" — precisa ser um domínio
+  // já verificado na Resend (envio) com a assinatura de recebimento habilitada
+  fromAddress: text("from_address").notNull(),
+  fromName: text("from_name"), // nome de exibição, ex: "UsePostFlow"
+  connected: boolean("connected").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONTATOS / CRM
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -155,10 +170,11 @@ export const contacts = pgTable("contacts", {
   instagramAccountId: text("instagram_account_id").references(() => instagramAccounts.id, { onDelete: "cascade" }),
   facebookPageId: text("facebook_page_id").references(() => facebookPages.id, { onDelete: "cascade" }),
   telegramAccountId: text("telegram_account_id").references(() => telegramAccounts.id, { onDelete: "cascade" }),
-  // "instagram" | "facebook" | "telegram" — diz qual das colunas acima vale pra esse contato
+  emailAccountId: text("email_account_id").references(() => emailAccounts.id, { onDelete: "cascade" }),
+  // "instagram" | "facebook" | "telegram" | "email" — diz qual das colunas acima vale pra esse contato
   platform: text("platform").notNull().default("instagram"),
-  // ID da pessoa, escopado por conta/PÃ¡gina/bot â€” serve pros trÃªs canais (no
-  // Telegram Ã© o chat_id, como texto)
+  // ID da pessoa, escopado por conta/PÃ¡gina/bot â€” serve pros quatro canais
+  // (no Telegram Ã© o chat_id, no e-mail Ã© o prÃ³prio endereÃ§o, como texto)
   igScopedId: text("ig_scoped_id").notNull(),
   name: text("name"),
   username: text("username"),
@@ -197,6 +213,9 @@ export const conversations = pgTable("conversations", {
   channel: text("channel").notNull().default("dm"), // dm | comment
   status: text("status").notNull().default("open"), // open | resolved
   unreadCount: integer("unread_count").notNull().default(0),
+  // assunto do e-mail (só usado no canal de e-mail) — guardado pra poder
+  // responder mantendo o "Re: assunto original" no mesmo tópico
+  subject: text("subject"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -6,6 +6,7 @@ import {
   contactTags,
   contacts,
   conversations,
+  emailAccounts,
   facebookPages,
   instagramAccounts,
   telegramAccounts,
@@ -16,11 +17,12 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
 import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendEmailMessage } from "@/lib/email";
 import { generateAiReply } from "@/lib/ai";
 import type { AutomationFlow, DelayNodeData, AddTagNodeData, ConditionNodeData, SendMessageNodeData } from "@/lib/automation-types";
 
 type RunRow = typeof automationRuns.$inferSelect;
-type Platform = "instagram" | "facebook" | "telegram";
+type Platform = "instagram" | "facebook" | "telegram" | "email";
 
 /** Escolhe a função de envio certa pra plataforma do contato. */
 export function sendPlatformMessage(
@@ -30,13 +32,28 @@ export function sendPlatformMessage(
     recipientId?: string;
     commentId?: string;
     text: string;
+    subject?: string;
     buttonText?: string;
     buttonUrl?: string;
   }
 ) {
   if (platform === "facebook") return sendFacebookMessage(params);
   if (platform === "telegram") return sendTelegramMessage(params);
+  if (platform === "email") return sendEmailMessage(params);
   return sendInstagramMessage(params);
+}
+
+/** Busca o assunto guardado da conversa (só existe pro canal de e-mail) e
+ * devolve pronto pra usar como "Re: assunto original". */
+async function emailReplySubject(conversationId: string | null): Promise<string | undefined> {
+  if (!conversationId) return undefined;
+  const [conv] = await db
+    .select({ subject: conversations.subject })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+  if (!conv?.subject) return undefined;
+  return conv.subject.toLowerCase().startsWith("re:") ? conv.subject : `Re: ${conv.subject}`;
 }
 
 function findNode(flow: AutomationFlow, id: string | null) {
@@ -138,6 +155,7 @@ export async function handleOptControlKeyword(params: {
       recipientId: params.recipientId,
       commentId: params.commentId,
       text: confirmText,
+      subject: params.platform === "email" ? await emailReplySubject(params.conversationId) : undefined,
     });
     await db.insert(messages).values({
       conversationId: params.conversationId,
@@ -219,6 +237,7 @@ export async function maybeReplyWithAi(params: {
       accessToken: params.accessToken,
       recipientId: params.recipientId,
       text: reply,
+      subject: params.platform === "email" ? await emailReplySubject(params.conversationId) : undefined,
     });
     await db.insert(messages).values({
       conversationId: params.conversationId,
@@ -437,6 +456,12 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     if (!account) throw new Error("Bot do Telegram não encontrado");
     accessToken = account.botToken;
     platform = "telegram";
+  } else if (contact.platform === "email") {
+    if (!contact.emailAccountId) throw new Error("Contato sem conta de e-mail vinculada");
+    const [account] = await db.select().from(emailAccounts).where(eq(emailAccounts.id, contact.emailAccountId)).limit(1);
+    if (!account) throw new Error("Conta de e-mail não encontrada");
+    accessToken = account.fromAddress;
+    platform = "email";
   } else {
     if (!contact.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
     const [account] = await db
@@ -456,6 +481,7 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     text: data.text,
     buttonText: data.buttonText,
     buttonUrl: data.buttonUrl,
+    subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
   });
 
   await db.insert(messages).values({

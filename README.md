@@ -200,10 +200,61 @@ ZapFlow. Rápido e sem depender da Meta.
 Pronto — o ZapFlow já registra o webhook automaticamente, não precisa configurar mais nada no
 Telegram. Pra testar, procure seu bot pelo username no Telegram e manda uma mensagem.
 
+## Configurar o canal de e-mail (Resend)
+
+Diferente dos outros canais, e-mail precisa de um domínio seu (não dá pra usar Gmail/Outlook
+comuns) e a configuração acontece em dois lugares: no painel da Resend e no ZapFlow.
+
+### 1. Criar conta e verificar o domínio na Resend
+
+1. Crie uma conta gratuita em [resend.com](https://resend.com).
+2. Vá em **Domains** → **Add Domain** e adicione o domínio que você quer usar pra enviar/receber
+   e-mails automáticos (ex.: `usepostflow.com`, ou um subdomínio como `mail.usepostflow.com` — veja
+   a dica abaixo).
+3. A Resend vai te dar alguns registros DNS (SPF, DKIM) — cole no painel do seu provedor de
+   domínio (Registro.br, GoDaddy, Cloudflare etc.) e aguarde a verificação (geralmente minutos, às
+   vezes até 24h).
+
+   > **Já usa esse domínio pra e-mail de verdade (Gmail Workspace, Outlook etc.)?** Use um
+   > subdomínio dedicado (ex.: `mail.usepostflow.com`) pra não bagunçar seus e-mails atuais.
+
+### 2. Ativar o recebimento de e-mails
+
+1. Ainda na página do domínio na Resend, ative **Receiving** (recebimento).
+2. Ela vai te dar um registro **MX** — cole também no seu provedor de DNS.
+3. Aguarde a verificação ficar "verified".
+
+### 3. Criar o webhook de recebimento
+
+1. No painel da Resend, vá em **Webhooks** → **Add Webhook**.
+2. URL do endpoint: `https://SEU-SITE.netlify.app/api/email/webhook` (troque pelo seu domínio do
+   Netlify).
+3. Evento: marque só **`email.received`**.
+4. Salve e copie o **Signing Secret** que aparece (começa com `whsec_`).
+
+### 4. Preencher as variáveis de ambiente
+
+No Netlify (Site settings → Environment variables) e no seu `.env` local:
+
+* `RESEND_API_KEY` — em **API Keys** no painel da Resend, crie uma chave nova e cole aqui.
+* `RESEND_WEBHOOK_SECRET` — o `whsec_...` que você copiou no passo anterior.
+
+Depois de adicionar no Netlify, faça um novo deploy pra elas valerem (`git commit` vazio ou
+qualquer alteração + `git push`).
+
+### 5. Conectar o endereço no ZapFlow
+
+No painel do ZapFlow, vá em **Configurações** → card **"E-mail"** → digite o endereço que você quer
+usar (ex.: `contato@usepostflow.com`, precisa ser do domínio que você verificou) → **Conectar**.
+
+Pronto — e-mails recebidos nesse endereço já disparam as automações de palavra-chave/boas-vindas
+(igual Direct do Instagram/Facebook/Telegram) e o Assistente de IA, se estiver ativado.
+
 ## Configurar o Assistente de IA (respostas automáticas com OpenAI)
 
-Responde no Direct do Instagram/Facebook quando nenhuma automação por palavra-chave bate com a
-mensagem — não mexe em nada do que já está configurado, só cobre o que sobra.
+Responde no Direct do Instagram/Facebook/Telegram e no e-mail quando nenhuma automação por
+palavra-chave bate com a mensagem — não mexe em nada do que já está configurado, só cobre o que
+sobra.
 
 1. Preencha `OPENAI_API_KEY` no `.env` (e no Netlify) com uma chave da sua conta em
    [platform.openai.com](https://platform.openai.com/api-keys).

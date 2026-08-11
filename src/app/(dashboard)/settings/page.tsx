@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { db } from "@/db";
-import { facebookPages, instagramAccounts, telegramAccounts } from "@/db/schema";
+import { emailAccounts, facebookPages, instagramAccounts, telegramAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { Camera, AlertCircle, CheckCircle2, BellRing, MessageCircle, Send } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, BellRing, MessageCircle, Send, Mail } from "lucide-react";
 import { AiSettingsCard } from "@/components/settings/ai-settings-card";
 import { TelegramConnectCard } from "@/components/settings/telegram-connect-card";
+import { EmailConnectCard } from "@/components/settings/email-connect-card";
 
 export default async function SettingsPage({
   searchParams,
@@ -34,12 +35,15 @@ export default async function SettingsPage({
   const bots = workspace
     ? await db.select().from(telegramAccounts).where(eq(telegramAccounts.workspaceId, workspace.id))
     : [];
+  const emails = workspace
+    ? await db.select().from(emailAccounts).where(eq(emailAccounts.workspaceId, workspace.id))
+    : [];
 
   return (
     <div className="p-8">
       <h1 className="text-xl font-semibold">Configurações</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Conecte suas contas do Instagram, Facebook e Telegram, e configure o Assistente de IA.
+        Conecte suas contas do Instagram, Facebook, Telegram e e-mail, e configure o Assistente de IA.
       </p>
 
       {params.ig_connected && (
@@ -201,6 +205,38 @@ export default async function SettingsPage({
             Não tem um bot ainda? No Telegram, converse com <b>@BotFather</b>, mande{" "}
             <code>/newbot</code>, siga as instruções e copie o token que ele te der. Veja o passo a
             passo completo no README.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6 max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Mail size={17} /> E-mail
+          </CardTitle>
+          <CardDescription>
+            Conecta um endereço de e-mail via Resend — dá pra automatizar respostas de e-mail igual aos
+            outros canais (palavra-chave, boas-vindas, IA de fallback etc.). Precisa de um domínio seu
+            verificado na Resend.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {emails.map((acc) => (
+            <div key={acc.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div>
+                <p className="text-sm font-medium">{acc.fromAddress}</p>
+              </div>
+              <Badge variant={acc.connected ? "success" : "secondary"}>
+                {acc.connected ? "Conectado" : "Desconectado"}
+              </Badge>
+            </div>
+          ))}
+
+          <EmailConnectCard />
+
+          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+            Antes de conectar aqui, você precisa criar uma conta na Resend, verificar seu domínio e
+            configurar o webhook de recebimento. Veja o passo a passo completo no README.
           </p>
         </CardContent>
       </Card>

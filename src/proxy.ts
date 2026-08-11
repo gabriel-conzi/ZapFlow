@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/instagram/webhook",
   "/api/facebook/webhook",
   "/api/telegram/webhook",
+  "/api/email/webhook",
   "/privacidade",
   "/termos",
   "/api/automations/resume",
