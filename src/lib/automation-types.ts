@@ -10,6 +10,12 @@ export type TriggerNodeData = {
   // (comentário em post/reels) — dispara se o texto contiver qualquer uma
   // dessas palavras (sem diferenciar maiúscula/minúscula)
   keywords?: string[];
+  // usado só quando triggerType === "comment" — se preenchido, essa
+  // automação só dispara pra comentários NESSE post/reels específico (evita
+  // conflito entre automações diferentes que usam a mesma palavra-chave em
+  // posts diferentes). Deixe em branco pra valer em qualquer post.
+  mediaId?: string;
+  mediaLabel?: string; // legenda curta só pra exibir no editor
 };
 
 export type SendMessageNodeData = {

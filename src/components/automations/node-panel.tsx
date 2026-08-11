@@ -1,13 +1,99 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { FlowNode } from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
+
+type MediaItem = {
+  id: string;
+  caption: string | null;
+  mediaType: string | null;
+  thumbnailUrl: string | null;
+  permalink: string | null;
+};
+
+function MediaPicker({
+  mediaId,
+  mediaLabel,
+  onSelect,
+}: {
+  mediaId?: string;
+  mediaLabel?: string;
+  onSelect: (mediaId?: string, mediaLabel?: string) => void;
+}) {
+  const [items, setItems] = useState<MediaItem[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/instagram/media");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao buscar posts");
+      setItems(data.media);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao buscar posts");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <label className="text-xs font-medium">Post/reels específico (opcional)</label>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Deixe em branco pra valer em qualquer post. Escolha um post pra essa automação só disparar
+        nele — útil quando posts diferentes usam a mesma palavra-chave com intenções diferentes.
+      </p>
+
+      {mediaId ? (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border p-2">
+          <span className="truncate text-xs">{mediaLabel || mediaId}</span>
+          <Button variant="ghost" size="sm" onClick={() => onSelect(undefined, undefined)}>
+            Remover
+          </Button>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" className="mt-2" onClick={load} disabled={loading}>
+          {loading && <Loader2 size={13} className="animate-spin" />}
+          Escolher post
+        </Button>
+      )}
+
+      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+
+      {items && !mediaId && (
+        <div className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+          {items.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhum post encontrado.</p>}
+          {items.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onSelect(m.id, (m.caption ?? "Sem legenda").slice(0, 50))}
+              className="flex items-center gap-2 rounded-md border p-1.5 text-left hover:bg-accent"
+            >
+              {m.thumbnailUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- miniatura vinda direto da API do Instagram
+                <img src={m.thumbnailUrl} alt="" className="size-9 shrink-0 rounded object-cover" />
+              ) : (
+                <span className="size-9 shrink-0 rounded bg-muted" />
+              )}
+              <span className="line-clamp-2 text-[11px]">{m.caption || "Sem legenda"}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function NodePanel({
   node,
@@ -68,11 +154,18 @@ export function NodePanel({
               </div>
             )}
             {node.data.triggerType === "comment" && (
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                A Meta só permite <b>1 resposta privada por comentário</b>, e só dentro de 7 dias. Se
-                o fluxo tiver mais de um passo de &quot;Enviar mensagem&quot;, só o primeiro vai funcionar
-                (a menos que o contato responda antes).
-              </p>
+              <>
+                <MediaPicker
+                  mediaId={node.data.mediaId}
+                  mediaLabel={node.data.mediaLabel}
+                  onSelect={(mediaId, mediaLabel) => onChange({ mediaId, mediaLabel })}
+                />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  A Meta só permite <b>1 resposta privada por comentário</b>, e só dentro de 7 dias.
+                  Se o fluxo tiver mais de um passo de &quot;Enviar mensagem&quot;, só o primeiro vai
+                  funcionar (a menos que o contato responda antes).
+                </p>
+              </>
             )}
           </div>
         )}

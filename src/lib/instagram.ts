@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { contacts, conversations, instagramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
-const GRAPH_VERSION = "v21.0";
+export const GRAPH_VERSION = "v21.0";
 
 /**
  * Acha a conta do Instagram conectada (da nossa tabela `instagram_accounts`)

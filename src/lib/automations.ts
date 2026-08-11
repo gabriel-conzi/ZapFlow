@@ -30,7 +30,7 @@ function nextNodeId(flow: AutomationFlow, fromId: string, handle?: string) {
 
 type TriggerEvent =
   | { kind: "dm"; messageText: string | null; isFirstMessage: boolean }
-  | { kind: "comment"; commentText: string | null };
+  | { kind: "comment"; commentText: string | null; mediaId: string | null };
 
 /** Verifica se o gatilho de um fluxo bate com o evento recebido (DM ou comentário). */
 export function matchesTrigger(flow: AutomationFlow, event: TriggerEvent): boolean {
@@ -50,6 +50,9 @@ export function matchesTrigger(flow: AutomationFlow, event: TriggerEvent): boole
 
   // event.kind === "comment"
   if (trigger.data.triggerType !== "comment") return false;
+  // se essa automação está vinculada a um post específico, só bate se o
+  // comentário foi feito exatamente nesse post/reels
+  if (trigger.data.mediaId && trigger.data.mediaId !== event.mediaId) return false;
   const keywords = trigger.data.keywords ?? [];
   if (keywords.length === 0) return false;
   const text = (event.commentText ?? "").toLowerCase();
@@ -88,8 +91,9 @@ export async function triggerAutomationsForComment(params: {
   conversationId: string;
   commentId: string;
   commentText: string | null;
+  mediaId: string | null;
 }) {
-  const { workspaceId, contactId, conversationId, commentId, commentText } = params;
+  const { workspaceId, contactId, conversationId, commentId, commentText, mediaId } = params;
 
   const active = await db
     .select()
@@ -98,7 +102,7 @@ export async function triggerAutomationsForComment(params: {
 
   for (const automation of active) {
     const flow = automation.flow as AutomationFlow;
-    if (matchesTrigger(flow, { kind: "comment", commentText })) {
+    if (matchesTrigger(flow, { kind: "comment", commentText, mediaId })) {
       await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId, commentId });
       break;
     }

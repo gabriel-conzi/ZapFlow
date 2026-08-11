@@ -200,6 +200,7 @@ async function processCommentEntry(entry: IgEntry) {
         conversationId: conversation.id,
         commentId: comment.id,
         commentText: comment.text ?? null,
+        mediaId: comment.media?.id ?? null,
       });
     } catch (err) {
       console.error("[instagram/webhook] erro ao processar comentário:", err);

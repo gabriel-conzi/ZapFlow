@@ -61,9 +61,14 @@ export function TriggerNode({ data, selected }: NodeProps & { data: TriggerNodeD
         </p>
       )}
       {data.triggerType === "comment" && (
-        <p className="truncate">
-          Comentário: {data.keywords?.length ? data.keywords.join(", ") : <em>nenhuma definida</em>}
-        </p>
+        <>
+          <p className="truncate">
+            Comentário: {data.keywords?.length ? data.keywords.join(", ") : <em>nenhuma definida</em>}
+          </p>
+          <p className="mt-0.5 truncate text-[10px]">
+            📌 {data.mediaLabel ? data.mediaLabel : "qualquer post"}
+          </p>
+        </>
       )}
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />
     </NodeShell>

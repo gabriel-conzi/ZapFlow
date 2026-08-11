@@ -30,9 +30,15 @@ export async function GET(req: Request) {
         data: { triggerType: "comment", keywords: ["eu quero"] },
       },
       {
+        id: "condition-1",
+        type: "condition",
+        position: { x: 0, y: 160 },
+        data: { tagName: "interessado-planos" },
+      },
+      {
         id: "send-1",
         type: "sendMessage",
-        position: { x: 0, y: 160 },
+        position: { x: -120, y: 340 },
         data: {
           text: messageText,
           buttonText: "Ver planos",
@@ -42,13 +48,16 @@ export async function GET(req: Request) {
       {
         id: "tag-1",
         type: "addTag",
-        position: { x: 0, y: 340 },
+        position: { x: -120, y: 520 },
         data: { tagName: "interessado-planos" },
       },
     ],
     edges: [
-      { id: "e1", source: "trigger", target: "send-1" },
-      { id: "e2", source: "send-1", target: "tag-1" },
+      { id: "e1", source: "trigger", target: "condition-1" },
+      // "Não" (ainda não tem a tag) -> manda a mensagem normalmente
+      { id: "e2", source: "condition-1", target: "send-1", sourceHandle: "no" },
+      { id: "e3", source: "send-1", target: "tag-1" },
+      // "Sim" (já tem a tag) -> fluxo termina aqui, sem reenviar a mensagem
     ],
   };
 
