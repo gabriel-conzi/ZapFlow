@@ -4,11 +4,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, X } from "lucide-react";
+import { Camera, ChevronLeft, Loader2, MessageCircle, X } from "lucide-react";
 import type { FlowNode } from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
+
+type Platform = "instagram" | "facebook";
 
 type MediaItem = {
   id: string;
@@ -16,7 +18,16 @@ type MediaItem = {
   mediaType: string | null;
   thumbnailUrl: string | null;
   permalink: string | null;
-  platform: "instagram" | "facebook";
+};
+
+const platformEndpoint: Record<Platform, string> = {
+  instagram: "/api/instagram/media",
+  facebook: "/api/facebook/media",
+};
+
+const platformLabel: Record<Platform, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
 };
 
 function MediaPicker({
@@ -28,34 +39,24 @@ function MediaPicker({
   mediaLabel?: string;
   onSelect: (mediaId?: string, mediaLabel?: string) => void;
 }) {
+  // Fluxo em 2 passos, de propósito: primeiro escolhe a REDE (bem visível,
+  // impossível de passar batido), só depois busca e mostra os posts daquela
+  // rede. Evita a confusão de uma lista só com Instagram e Facebook
+  // misturados, onde é fácil nem notar que tem post de outra rede mais embaixo.
+  const [platform, setPlatform] = useState<Platform | null>(null);
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Busca posts do Instagram e do Facebook em paralelo e junta numa lista só
-  // (cada item com um selo indicando a plataforma). Se uma das duas contas
-  // não estiver conectada, só ignora o erro dela e mostra a outra.
-  async function load() {
+  async function loadPlatform(p: Platform) {
+    setPlatform(p);
     setLoading(true);
     setError(null);
     try {
-      const [igRes, fbRes] = await Promise.all([
-        fetch("/api/instagram/media").then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
-        fetch("/api/facebook/media").then((r) => r.json().then((d) => ({ ok: r.ok, d }))),
-      ]);
-
-      const igItems: MediaItem[] = igRes.ok
-        ? (igRes.d.media as Omit<MediaItem, "platform">[]).map((m) => ({ ...m, platform: "instagram" as const }))
-        : [];
-      const fbItems: MediaItem[] = fbRes.ok
-        ? (fbRes.d.media as Omit<MediaItem, "platform">[]).map((m) => ({ ...m, platform: "facebook" as const }))
-        : [];
-
-      if (!igRes.ok && !fbRes.ok) {
-        throw new Error(igRes.d.error ?? fbRes.d.error ?? "Erro ao buscar posts");
-      }
-
-      setItems([...igItems, ...fbItems]);
+      const res = await fetch(platformEndpoint[p]);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao buscar posts");
+      setItems(data.media);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao buscar posts");
     } finally {
@@ -63,31 +64,64 @@ function MediaPicker({
     }
   }
 
+  function reset() {
+    setPlatform(null);
+    setItems(null);
+    setError(null);
+  }
+
   return (
     <div className="mt-4">
       <label className="text-xs font-medium">Post/reels específico (opcional)</label>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Deixe em branco pra valer em qualquer post. Escolha um post pra essa automação só disparar
-        nele — útil quando posts diferentes usam a mesma palavra-chave com intenções diferentes.
+        Deixe em branco pra valer em qualquer post, de qualquer rede. Escolha um post pra essa
+        automação só disparar nele — útil quando posts diferentes usam a mesma palavra-chave com
+        intenções diferentes.
       </p>
 
       {mediaId ? (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-md border p-2">
           <span className="truncate text-xs">{mediaLabel || mediaId}</span>
-          <Button variant="ghost" size="sm" onClick={() => onSelect(undefined, undefined)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              reset();
+              onSelect(undefined, undefined);
+            }}
+          >
             Remover
           </Button>
         </div>
+      ) : platform === null ? (
+        <div className="mt-2 flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => loadPlatform("instagram")}>
+            <Camera size={14} /> Instagram
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => loadPlatform("facebook")}>
+            <MessageCircle size={14} /> Facebook
+          </Button>
+        </div>
       ) : (
-        <Button variant="outline" size="sm" className="mt-2" onClick={load} disabled={loading}>
-          {loading && <Loader2 size={13} className="animate-spin" />}
-          Escolher post
-        </Button>
+        <div className="mt-2 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={reset}>
+            <ChevronLeft size={14} /> Trocar rede
+          </Button>
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Posts do {platformLabel[platform]}
+          </span>
+        </div>
+      )}
+
+      {loading && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" /> Buscando posts...
+        </p>
       )}
 
       {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
 
-      {items && !mediaId && (
+      {items && !mediaId && !loading && (
         <div className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto">
           {items.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhum post encontrado.</p>}
           {items.map((m) => (
@@ -95,7 +129,7 @@ function MediaPicker({
               key={m.id}
               type="button"
               onClick={() =>
-                onSelect(m.id, `${m.platform === "facebook" ? "[FB] " : "[IG] "}${(m.caption ?? "Sem legenda").slice(0, 45)}`)
+                onSelect(m.id, `${platform === "facebook" ? "[FB] " : "[IG] "}${(m.caption ?? "Sem legenda").slice(0, 45)}`)
               }
               className="flex items-center gap-2 rounded-md border p-1.5 text-left hover:bg-accent"
             >
@@ -106,9 +140,6 @@ function MediaPicker({
                 <span className="size-9 shrink-0 rounded bg-muted" />
               )}
               <span className="flex-1 line-clamp-2 text-[11px]">{m.caption || "Sem legenda"}</span>
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                {m.platform === "facebook" ? "FB" : "IG"}
-              </span>
             </button>
           ))}
         </div>
