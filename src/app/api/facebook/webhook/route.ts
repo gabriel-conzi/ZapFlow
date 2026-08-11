@@ -194,6 +194,7 @@ async function processFeedEntry(entry: FbEntry) {
         facebookPageId: page.id,
         psid: item.from.id,
         accessToken: page.accessToken,
+        fallbackName: item.from.name,
       });
 
       const conversation = await getOrCreateConversation({

@@ -38,14 +38,22 @@ export async function fetchFacebookProfile(accessToken: string, psid: string) {
 /**
  * Retorna o contato já existente (mesmo workspace + mesmo PSID no Facebook)
  * ou cria um novo, buscando o perfil na Graph API.
+ *
+ * `fallbackName`: pra quem comentou num post, a Meta já manda o nome junto
+ * no próprio evento do webhook (`from.name`). A busca de perfil via Graph API
+ * (`/{psid}?fields=first_name,...`) só funciona pra quem já tem uma conversa
+ * de Messenger aberta com a Página — quem só comentou (nunca mandou Direct)
+ * não tem esse acesso liberado e a chamada falha. Por isso usamos o nome que
+ * já veio no evento como reserva, em vez de deixar o contato sem nome.
  */
 export async function getOrCreateFacebookContact(params: {
   workspaceId: string;
   facebookPageId: string;
   psid: string;
   accessToken: string;
+  fallbackName?: string;
 }) {
-  const { workspaceId, facebookPageId, psid, accessToken } = params;
+  const { workspaceId, facebookPageId, psid, accessToken, fallbackName } = params;
 
   const [existing] = await db
     .select()
@@ -65,7 +73,7 @@ export async function getOrCreateFacebookContact(params: {
       facebookPageId,
       platform: "facebook",
       igScopedId: psid,
-      name: profile?.name ?? null,
+      name: profile?.name ?? fallbackName ?? null,
       profilePicUrl: profile?.profilePicUrl ?? null,
     })
     .returning();
