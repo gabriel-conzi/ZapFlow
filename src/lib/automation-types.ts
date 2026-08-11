@@ -15,6 +15,10 @@ export type TriggerNodeData = {
 export type SendMessageNodeData = {
   label?: string;
   text: string;
+  // botão opcional (fica logo abaixo do texto, ao invés de colar um link cru
+  // na mensagem) — só funciona com botão do tipo "abrir link"
+  buttonText?: string;
+  buttonUrl?: string;
 };
 
 export type DelayNodeData = {

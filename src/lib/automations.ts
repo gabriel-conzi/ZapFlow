@@ -268,6 +268,8 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,
     text: data.text,
+    buttonText: data.buttonText,
+    buttonUrl: data.buttonUrl,
   });
 
   await db.insert(messages).values({

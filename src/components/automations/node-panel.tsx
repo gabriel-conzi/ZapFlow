@@ -86,6 +86,25 @@ export function NodePanel({
               onChange={(e) => onChange({ text: e.target.value })}
               placeholder="Escreva a mensagem que será enviada..."
             />
+
+            <div className="mt-4">
+              <label className="text-xs font-medium">Botão (opcional)</label>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Em vez de colar um link no texto, manda um botão de verdade abaixo da mensagem.
+              </p>
+              <Input
+                className="mt-2"
+                value={node.data.buttonText ?? ""}
+                onChange={(e) => onChange({ buttonText: e.target.value || undefined })}
+                placeholder="Texto do botão (ex: Ver planos)"
+              />
+              <Input
+                className="mt-2"
+                value={node.data.buttonUrl ?? ""}
+                onChange={(e) => onChange({ buttonUrl: e.target.value || undefined })}
+                placeholder="https://..."
+              />
+            </div>
           </div>
         )}
 

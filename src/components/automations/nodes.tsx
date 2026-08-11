@@ -74,6 +74,11 @@ export function SendMessageNode({ data, selected }: NodeProps & { data: SendMess
   return (
     <NodeShell selected={selected} icon={<Send size={13} />} iconClassName="bg-primary" title="Enviar mensagem">
       <p className="line-clamp-3">{data.text || <em>mensagem vazia</em>}</p>
+      {data.buttonText && (
+        <span className="mt-1.5 inline-block rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+          🔗 {data.buttonText}
+        </span>
+      )}
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
     </NodeShell>
   );
