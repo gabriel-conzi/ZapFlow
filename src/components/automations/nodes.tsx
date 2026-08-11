@@ -76,7 +76,8 @@ export function SendMessageNode({ data, selected }: NodeProps & { data: SendMess
 }
 
 export function DelayNode({ data, selected }: NodeProps & { data: DelayNodeData }) {
-  const unitLabel = { minutes: "minuto(s)", hours: "hora(s)", days: "dia(s)" }[data.unit] ?? data.unit;
+  const unitLabel =
+    { seconds: "segundo(s)", minutes: "minuto(s)", hours: "hora(s)", days: "dia(s)" }[data.unit] ?? data.unit;
   return (
     <NodeShell selected={selected} icon={<Clock size={13} />} iconClassName="bg-sky-500" title="Esperar">
       <p>

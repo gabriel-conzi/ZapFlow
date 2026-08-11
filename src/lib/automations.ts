@@ -199,7 +199,7 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
 }
 
 function computeResumeAt(data: DelayNodeData): Date {
-  const msPerUnit = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 } as const;
+  const msPerUnit = { seconds: 1_000, minutes: 60_000, hours: 3_600_000, days: 86_400_000 } as const;
   const amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 1;
   return new Date(Date.now() + amount * msPerUnit[data.unit]);
 }

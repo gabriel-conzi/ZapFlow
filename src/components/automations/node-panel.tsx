@@ -96,13 +96,18 @@ export function NodePanel({
               <select
                 className={selectClass + " mt-1"}
                 value={node.data.unit}
-                onChange={(e) => onChange({ unit: e.target.value as "minutes" | "hours" | "days" })}
+                onChange={(e) => onChange({ unit: e.target.value as "seconds" | "minutes" | "hours" | "days" })}
               >
+                <option value="seconds">Segundos</option>
                 <option value="minutes">Minutos</option>
                 <option value="hours">Horas</option>
                 <option value="days">Dias</option>
               </select>
             </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Esperas de poucos segundos não são exatas: a automação retoma quando o verificador da
+              Netlify rodar (a cada ~1 minuto), então pode levar até 1 minuto pra continuar.
+            </p>
           </div>
         )}
 

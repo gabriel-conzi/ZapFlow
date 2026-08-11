@@ -19,7 +19,7 @@ export type SendMessageNodeData = {
 export type DelayNodeData = {
   label?: string;
   amount: number;
-  unit: "minutes" | "hours" | "days";
+  unit: "seconds" | "minutes" | "hours" | "days";
 };
 
 export type AddTagNodeData = {
