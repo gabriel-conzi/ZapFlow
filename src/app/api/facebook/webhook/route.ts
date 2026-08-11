@@ -208,6 +208,10 @@ async function processFeedEntry(entry: FbEntry) {
         sender: "contact",
         text: item.message ?? null,
         igMessageId: item.comment_id,
+        // reaproveitando mediaUrl (não usado em comentários) só pra guardar o
+        // post_id bruto que a Meta mandou — ajuda a debugar automação de
+        // comentário vinculada a post específico que não bate o mediaId
+        mediaUrl: item.post_id ?? null,
       });
 
       await db
