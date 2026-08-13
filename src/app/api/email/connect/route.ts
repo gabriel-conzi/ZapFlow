@@ -4,9 +4,9 @@ import { emailAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
-// Salva o endereço remetente conectado (ex: contato@usepostflow.com). As
-// chaves sensíveis (RESEND_API_KEY, RESEND_WEBHOOK_SECRET) ficam só no .env —
-// aqui só guardamos qual endereço/domínio o workspace vai usar.
+// Salva o endereço remetente conectado (ex: contato@bot.usepostflow.com). As
+// chaves sensíveis (MAILGUN_API_KEY, MAILGUN_WEBHOOK_SIGNING_KEY) ficam só no
+// .env — aqui só guardamos qual endereço/domínio o workspace vai usar.
 export async function POST(req: Request) {
   const workspace = await getCurrentWorkspace();
   if (!workspace) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -18,9 +18,9 @@ export async function POST(req: Request) {
   if (!fromAddress || !fromAddress.includes("@")) {
     return NextResponse.json({ error: "Informe um endereço de e-mail válido" }, { status: 400 });
   }
-  if (!process.env.RESEND_API_KEY) {
+  if (!process.env.MAILGUN_API_KEY) {
     return NextResponse.json(
-      { error: "RESEND_API_KEY não configurada no .env — veja o passo a passo no README" },
+      { error: "MAILGUN_API_KEY não configurada no .env — veja o passo a passo no README" },
       { status: 400 }
     );
   }

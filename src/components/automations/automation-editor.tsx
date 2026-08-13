@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { nodeTypes, paletteItems } from "@/components/automations/nodes";
 import { NodePanel } from "@/components/automations/node-panel";
-import type { AutomationFlow, FlowNode, FlowNodeType } from "@/lib/automation-types";
+import type { AutomationFlow, FlowNode, FlowNodeType, SendMessageNodeData } from "@/lib/automation-types";
 
 type AutomationRow = {
   id: string;
@@ -32,7 +32,7 @@ type AutomationRow = {
 function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
   switch (type) {
     case "sendMessage":
-      return { text: "" };
+      return { text: "", buttons: [] };
     case "delay":
       return { amount: 1, unit: "hours" };
     case "addTag":
@@ -97,7 +97,27 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
 
   function updateSelectedNodeData(partial: Record<string, unknown>) {
     if (!selectedId) return;
-    setNodes((nds) => nds.map((n) => (n.id === selectedId ? { ...n, data: { ...n.data, ...partial } } : n)));
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== selectedId) return n;
+        const nextData = { ...n.data, ...partial };
+        // se a lista de botões de um nó de "Enviar mensagem" mudou (botão
+        // removido, ou trocou de "ramificar" pra "link"), tira do canvas as
+        // arestas que saíam de um botão que não existe mais como "reply" —
+        // o id do botão é o sourceHandle da aresta.
+        if (n.type === "sendMessage" && "buttons" in partial) {
+          const validHandles = new Set(
+            ((nextData as SendMessageNodeData).buttons ?? [])
+              .filter((b) => b.kind === "reply")
+              .map((b) => b.id)
+          );
+          setEdges((eds) =>
+            eds.filter((e) => e.source !== selectedId || !e.sourceHandle || validHandles.has(e.sourceHandle))
+          );
+        }
+        return { ...n, data: nextData };
+      })
+    );
   }
 
   function deleteSelectedNode() {

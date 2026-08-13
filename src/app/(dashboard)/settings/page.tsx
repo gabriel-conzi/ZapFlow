@@ -215,9 +215,9 @@ export default async function SettingsPage({
             <Mail size={17} /> E-mail
           </CardTitle>
           <CardDescription>
-            Conecta um endereço de e-mail via Resend — dá pra automatizar respostas de e-mail igual aos
-            outros canais (palavra-chave, boas-vindas, IA de fallback etc.). Precisa de um domínio seu
-            verificado na Resend.
+            Conecta um endereço de e-mail via Mailgun — dá pra automatizar respostas de e-mail igual aos
+            outros canais (palavra-chave, boas-vindas, IA de fallback etc.). Precisa de um domínio (ou
+            subdomínio) seu verificado na Mailgun.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -235,8 +235,8 @@ export default async function SettingsPage({
           <EmailConnectCard />
 
           <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-            Antes de conectar aqui, você precisa criar uma conta na Resend, verificar seu domínio e
-            configurar o webhook de recebimento. Veja o passo a passo completo no README.
+            Antes de conectar aqui, você precisa criar uma conta na Mailgun, verificar seu domínio e
+            configurar a Route de recebimento. Veja o passo a passo completo no README.
           </p>
         </CardContent>
       </Card>

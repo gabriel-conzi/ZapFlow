@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { contacts, facebookPages } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import type { SendableButton } from "@/lib/automation-types";
 
 export const FB_GRAPH_VERSION = "v21.0";
 
@@ -109,25 +110,19 @@ export async function sendFacebookMessage(params: {
   recipientId?: string;
   commentId?: string;
   text: string;
-  buttonText?: string;
-  buttonUrl?: string;
+  buttons?: SendableButton[];
 }) {
-  const { accessToken, recipientId, commentId, text, buttonText, buttonUrl } = params;
+  const { accessToken, recipientId, commentId, text, buttons } = params;
   const recipient = commentId ? { comment_id: commentId } : { id: recipientId };
 
-  const message =
-    buttonText && buttonUrl
-      ? {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text,
-              buttons: [{ type: "web_url", url: buttonUrl, title: buttonText }],
-            },
-          },
-        }
-      : { text };
+  const message = buttons?.length
+    ? {
+        attachment: {
+          type: "template",
+          payload: { template_type: "button", text, buttons },
+        },
+      }
+    : { text };
 
   const res = await fetch(`https://graph.facebook.com/${FB_GRAPH_VERSION}/me/messages?access_token=${accessToken}`, {
     method: "POST",

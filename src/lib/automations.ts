@@ -13,13 +13,21 @@ import {
   messages,
   tags,
 } from "@/db/schema";
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
 import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmailMessage } from "@/lib/email";
 import { generateAiReply } from "@/lib/ai";
-import type { AutomationFlow, DelayNodeData, AddTagNodeData, ConditionNodeData, SendMessageNodeData } from "@/lib/automation-types";
+import { getMessageButtons, hasReplyButtons, toSendableButtons } from "@/lib/automation-types";
+import type {
+  AutomationFlow,
+  DelayNodeData,
+  AddTagNodeData,
+  ConditionNodeData,
+  SendMessageNodeData,
+  SendableButton,
+} from "@/lib/automation-types";
 
 type RunRow = typeof automationRuns.$inferSelect;
 type Platform = "instagram" | "facebook" | "telegram" | "email";
@@ -33,8 +41,7 @@ export function sendPlatformMessage(
     commentId?: string;
     text: string;
     subject?: string;
-    buttonText?: string;
-    buttonUrl?: string;
+    buttons?: SendableButton[];
   }
 ) {
   if (platform === "facebook") return sendFacebookMessage(params);
@@ -315,6 +322,58 @@ export async function startAutomationRun(params: {
   await advanceRun(run, flow);
 }
 
+/**
+ * Retoma uma execução que estava pausada esperando o contato apertar um
+ * botão de ramificação (nó de "Enviar mensagem" com botão tipo "reply").
+ * `payload` é o id do botão, que a Meta devolve no evento de postback quando
+ * o contato aperta de verdade — é o caminho principal. Se não vier payload
+ * (o contato só digitou uma mensagem normal em vez de apertar o botão),
+ * tenta casar pelo texto do botão como fallback mais frouxo.
+ *
+ * Retorna true se havia uma execução esperando E algum botão bateu — nesse
+ * caso quem chamou NÃO deve rodar o disparo normal de automações pra essa
+ * mensagem (evita resposta duplicada). Se não havia execução esperando, ou
+ * nenhum botão bateu, retorna false e quem chamou segue o fluxo normal
+ * (palavra-chave / IA), deixando a execução pausada como estava.
+ */
+export async function resumeRunWaitingForButton(params: {
+  contactId: string;
+  payload?: string | null;
+  messageText?: string | null;
+}): Promise<boolean> {
+  const { contactId, payload, messageText } = params;
+
+  const [run] = await db
+    .select()
+    .from(automationRuns)
+    .where(
+      and(eq(automationRuns.contactId, contactId), eq(automationRuns.status, "waiting"), isNull(automationRuns.resumeAt))
+    )
+    .orderBy(desc(automationRuns.updatedAt))
+    .limit(1);
+  if (!run || !run.nextNodeId) return false;
+
+  const [automation] = await db.select().from(automations).where(eq(automations.id, run.automationId)).limit(1);
+  if (!automation) return false;
+
+  const flow = automation.flow as AutomationFlow;
+  const node = findNode(flow, run.nextNodeId);
+  if (!node || node.type !== "sendMessage") return false;
+
+  const replyButtons = getMessageButtons(node.data).filter((b) => b.kind === "reply");
+  if (replyButtons.length === 0) return false;
+
+  const normalizedText = messageText?.trim().toLowerCase();
+  const matched =
+    (payload ? replyButtons.find((b) => b.id === payload) : undefined) ??
+    (normalizedText ? replyButtons.find((b) => b.label.trim().toLowerCase() === normalizedText) : undefined);
+  if (!matched) return false;
+
+  const advanced = await persistNext(run, nextNodeId(flow, node.id, matched.id));
+  await advanceRun(advanced, flow);
+  return true;
+}
+
 /** Retoma execuções que estavam esperando (nó de delay) e já venceram o prazo. */
 export async function resumeDueRuns() {
   const due = await db
@@ -384,6 +443,25 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
           await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
           current = { ...current, commentId: null };
         }
+
+        if (hasReplyButtons(node.data)) {
+          // mensagem tem botão de ramificação: pausa aqui e espera o
+          // contato apertar um deles (não segue pela saída padrão). Deixa
+          // nextNodeId apontando pro PRÓPRIO nó, pra saber quais botões
+          // casar quando resumeRunWaitingForButton() for chamado.
+          await db
+            .update(automationRuns)
+            .set({ status: "waiting", resumeAt: null, nextNodeId: node.id, updatedAt: new Date() })
+            .where(eq(automationRuns.id, current.id));
+          await db.insert(automationLogs).values({
+            automationId: current.automationId,
+            contactId: current.contactId,
+            status: "step",
+            detail: "Esperando o contato escolher um botão",
+          });
+          return;
+        }
+
         current = await persistNext(current, nextNodeId(flow, node.id));
         continue;
       }
@@ -479,8 +557,7 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,
     text: data.text,
-    buttonText: data.buttonText,
-    buttonUrl: data.buttonUrl,
+    buttons: toSendableButtons(data),
     subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
   });
 

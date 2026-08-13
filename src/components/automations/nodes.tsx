@@ -3,6 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Clock, GitBranch, MessageSquareText, Send, Tag, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getMessageButtons } from "@/lib/automation-types";
 import type {
   AddTagNodeData,
   ConditionNodeData,
@@ -76,15 +77,48 @@ export function TriggerNode({ data, selected }: NodeProps & { data: TriggerNodeD
 }
 
 export function SendMessageNode({ data, selected }: NodeProps & { data: SendMessageNodeData }) {
+  const buttons = getMessageButtons(data);
+  const replyButtons = buttons.filter((b) => b.kind === "reply");
+  const hasReply = replyButtons.length > 0;
+
   return (
     <NodeShell selected={selected} icon={<Send size={13} />} iconClassName="bg-primary" title="Enviar mensagem">
       <p className="line-clamp-3">{data.text || <em>mensagem vazia</em>}</p>
-      {data.buttonText && (
-        <span className="mt-1.5 inline-block rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-          🔗 {data.buttonText}
-        </span>
+
+      {buttons.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {buttons.map((b) => (
+            <span
+              key={b.id}
+              className="truncate rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+            >
+              {b.kind === "link" ? "🔗 " : "↪ "}
+              {b.label || <em>sem texto</em>}
+            </span>
+          ))}
+        </div>
       )}
-      <Handle type="source" position={Position.Bottom} className="!bg-primary" />
+
+      {hasReply && (
+        <p className="mt-1.5 text-[10px] italic text-muted-foreground">
+          Pausa aqui até o contato escolher um botão ↓ (na mesma ordem da lista acima)
+        </p>
+      )}
+
+      {hasReply ? (
+        replyButtons.map((b, i) => (
+          <Handle
+            key={b.id}
+            type="source"
+            position={Position.Bottom}
+            id={b.id}
+            style={{ left: `${((i + 1) / (replyButtons.length + 1)) * 100}%` }}
+            className="!bg-fuchsia-500"
+          />
+        ))
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="!bg-primary" />
+      )}
     </NodeShell>
   );
 }

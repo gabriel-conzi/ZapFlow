@@ -6,6 +6,7 @@ import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConvers
 import {
   handleOptControlKeyword,
   maybeReplyWithAi,
+  resumeRunWaitingForButton,
   triggerAutomationsForComment,
   triggerAutomationsForMessage,
 } from "@/lib/automations";
@@ -34,6 +35,10 @@ type IgMessagingEvent = {
     is_echo?: boolean;
     attachments?: Array<{ type: string; payload?: { url?: string } }>;
   };
+  // presente quando o contato aperta um botão de "ramificar conversa" (nosso
+  // botão do tipo "reply" vira "postback" na Graph API) — `payload` é o id
+  // do botão que a gente mandou ao enviar a mensagem.
+  postback?: { mid?: string; title?: string; payload?: string };
 };
 
 type IgCommentChange = {
@@ -91,10 +96,12 @@ async function processMessagingEntry(entry: IgEntry) {
 
   for (const event of entry.messaging) {
     const msg = event.message;
+    const postback = event.postback;
     // "is_echo" é a confirmação da própria Meta de uma mensagem que NÓS
     // enviamos (via /api/instagram/send). Já salvamos ela na hora de
     // enviar, então ignoramos aqui pra não duplicar.
-    if (!msg || msg.is_echo) continue;
+    if (msg?.is_echo) continue;
+    if (!msg && !postback) continue;
 
     const contact = await getOrCreateContact({
       workspaceId: account.workspaceId,
@@ -109,15 +116,18 @@ async function processMessagingEntry(entry: IgEntry) {
       channel: "dm",
     });
 
-    const mediaUrl = msg.attachments?.[0]?.payload?.url ?? null;
+    const mediaUrl = msg?.attachments?.[0]?.payload?.url ?? null;
+    // postback (clique num botão de ramificação) não tem texto de verdade —
+    // usa o título do botão só pra aparecer legível na Inbox.
+    const text = msg?.text ?? postback?.title ?? null;
 
     await db.insert(messages).values({
       conversationId: conversation.id,
       direction: "inbound",
       sender: "contact",
-      text: msg.text ?? null,
+      text,
       mediaUrl,
-      igMessageId: msg.mid,
+      igMessageId: msg?.mid ?? postback?.mid ?? null,
     });
 
     await db
@@ -134,39 +144,53 @@ async function processMessagingEntry(entry: IgEntry) {
     // dispara automações (palavra-chave / boas-vindas) depois de salvar a
     // mensagem — se der erro, não deve derrubar o recebimento da mensagem em si
     try {
-      const handled = await handleOptControlKeyword({
+      // se tinha uma automação pausada esperando o contato escolher um botão
+      // (de ramificação), tenta resolver por aqui primeiro — via o payload
+      // do postback (clique de verdade) ou, se a pessoa digitou em vez de
+      // clicar, tentando casar pelo texto do botão.
+      const handledByButton = await resumeRunWaitingForButton({
         contactId: contact.id,
-        conversationId: conversation.id,
-        text: msg.text ?? null,
-        accessToken: account.accessToken,
-        recipientId: contact.igScopedId,
-        platform: "instagram",
+        payload: postback?.payload ?? null,
+        messageText: msg?.text ?? null,
       });
 
-      if (!handled) {
-        const existingMessages = await db
-          .select({ id: messages.id })
-          .from(messages)
-          .where(eq(messages.conversationId, conversation.id));
-        const isFirstMessage = existingMessages.length === 1;
-
-        const matched = await triggerAutomationsForMessage({
-          workspaceId: account.workspaceId,
+      // um postback sem nenhuma execução esperando (ex: clique duplicado
+      // reenviado pela Meta) não deve acionar mais nada.
+      if (!handledByButton && msg) {
+        const handled = await handleOptControlKeyword({
           contactId: contact.id,
           conversationId: conversation.id,
-          messageText: msg.text ?? null,
-          isFirstMessage,
+          text: msg.text ?? null,
+          accessToken: account.accessToken,
+          recipientId: contact.igScopedId,
+          platform: "instagram",
         });
 
-        if (!matched) {
-          await maybeReplyWithAi({
+        if (!handled) {
+          const existingMessages = await db
+            .select({ id: messages.id })
+            .from(messages)
+            .where(eq(messages.conversationId, conversation.id));
+          const isFirstMessage = existingMessages.length === 1;
+
+          const matched = await triggerAutomationsForMessage({
             workspaceId: account.workspaceId,
             contactId: contact.id,
             conversationId: conversation.id,
-            accessToken: account.accessToken,
-            recipientId: contact.igScopedId,
-            platform: "instagram",
+            messageText: msg.text ?? null,
+            isFirstMessage,
           });
+
+          if (!matched) {
+            await maybeReplyWithAi({
+              workspaceId: account.workspaceId,
+              contactId: contact.id,
+              conversationId: conversation.id,
+              accessToken: account.accessToken,
+              recipientId: contact.igScopedId,
+              platform: "instagram",
+            });
+          }
         }
       }
     } catch (err) {

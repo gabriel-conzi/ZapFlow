@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { contacts, conversations, instagramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import type { SendableButton } from "@/lib/automation-types";
 
 export const GRAPH_VERSION = "v21.0";
 
@@ -142,27 +143,21 @@ export async function sendInstagramMessage(params: {
   recipientId?: string;
   commentId?: string;
   text: string;
-  // se os dois vierem preenchidos, manda como "button template" (texto +
-  // botão de verdade) em vez de colar o link cru no texto da mensagem
-  buttonText?: string;
-  buttonUrl?: string;
+  // se vier preenchido, manda como "button template" (texto + até 3 botões
+  // de verdade, misturando link e ramificação) em vez de só texto
+  buttons?: SendableButton[];
 }) {
-  const { accessToken, recipientId, commentId, text, buttonText, buttonUrl } = params;
+  const { accessToken, recipientId, commentId, text, buttons } = params;
   const recipient = commentId ? { comment_id: commentId } : { id: recipientId };
 
-  const message =
-    buttonText && buttonUrl
-      ? {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text,
-              buttons: [{ type: "web_url", url: buttonUrl, title: buttonText }],
-            },
-          },
-        }
-      : { text };
+  const message = buttons?.length
+    ? {
+        attachment: {
+          type: "template",
+          payload: { template_type: "button", text, buttons },
+        },
+      }
+    : { text };
 
   const res = await fetch(
     `https://graph.instagram.com/${GRAPH_VERSION}/me/messages?access_token=${accessToken}`,

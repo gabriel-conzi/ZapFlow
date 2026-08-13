@@ -200,52 +200,67 @@ ZapFlow. Rápido e sem depender da Meta.
 Pronto — o ZapFlow já registra o webhook automaticamente, não precisa configurar mais nada no
 Telegram. Pra testar, procure seu bot pelo username no Telegram e manda uma mensagem.
 
-## Configurar o canal de e-mail (Resend)
+## Configurar o canal de e-mail (Mailgun)
 
 Diferente dos outros canais, e-mail precisa de um domínio seu (não dá pra usar Gmail/Outlook
-comuns) e a configuração acontece em dois lugares: no painel da Resend e no ZapFlow.
+comuns) e a configuração acontece em dois lugares: no painel da Mailgun e no ZapFlow.
 
-### 1. Criar conta e verificar o domínio na Resend
+> **Importante:** use um **subdomínio dedicado só pra isso** (ex.: `bot.usepostflow.com`), nunca o
+> domínio principal que você já usa pra e-mail de verdade. Colocar os registros MX da Mailgun no
+> domínio raiz pode competir com o e-mail que você já usa (Gmail Workspace, GoDaddy, Outlook etc.)
+> e bagunçar a entrega dele. Num subdomínio novo, não tem esse risco — ele começa "vazio", sem
+> nenhum registro pra conflitar.
 
-1. Crie uma conta gratuita em [resend.com](https://resend.com).
-2. Vá em **Domains** → **Add Domain** e adicione o domínio que você quer usar pra enviar/receber
-   e-mails automáticos (ex.: `usepostflow.com`, ou um subdomínio como `mail.usepostflow.com` — veja
-   a dica abaixo).
-3. A Resend vai te dar alguns registros DNS (SPF, DKIM) — cole no painel do seu provedor de
-   domínio (Registro.br, GoDaddy, Cloudflare etc.) e aguarde a verificação (geralmente minutos, às
-   vezes até 24h).
+### 1. Criar conta e verificar o domínio na Mailgun
 
-   > **Já usa esse domínio pra e-mail de verdade (Gmail Workspace, Outlook etc.)?** Use um
-   > subdomínio dedicado (ex.: `mail.usepostflow.com`) pra não bagunçar seus e-mails atuais.
+1. Crie uma conta gratuita em [mailgun.com](https://www.mailgun.com) (o plano grátis já cobre
+   sobra: 100 e-mails/dia, pra sempre, sem cartão).
+2. Vá em **Sending** → **Domains** → **Add New Domain** e cadastre o subdomínio dedicado (ex.:
+   `bot.usepostflow.com`).
+3. A Mailgun vai te dar registros DNS (TXT de SPF, TXT/CNAME de DKIM) — cole no painel do seu
+   provedor de DNS (Registro.br, GoDaddy, Cloudflare etc.) e aguarde a verificação (geralmente
+   minutos, às vezes até 24h).
 
 ### 2. Ativar o recebimento de e-mails
 
-1. Ainda na página do domínio na Resend, ative **Receiving** (recebimento).
-2. Ela vai te dar um registro **MX** — cole também no seu provedor de DNS.
-3. Aguarde a verificação ficar "verified".
+1. Vá na aba **Receiving** do mesmo domínio.
+2. Ela vai te dar um registro **MX** — cole também no seu provedor de DNS (é normal ele apontar
+   pra `mxa.mailgun.org` / `mxb.mailgun.org`).
+3. Aguarde a verificação.
 
-### 3. Criar o webhook de recebimento
+### 3. Criar a Route (regra de recebimento → webhook)
 
-1. No painel da Resend, vá em **Webhooks** → **Add Webhook**.
-2. URL do endpoint: `https://SEU-SITE.netlify.app/api/email/webhook` (troque pelo seu domínio do
-   Netlify).
-3. Evento: marque só **`email.received`**.
-4. Salve e copie o **Signing Secret** que aparece (começa com `whsec_`).
+1. Ainda em **Receiving**, vá em **Routes** → **Create Route**.
+2. **Filter**: `match_recipient(".*@bot.usepostflow.com")` (troque pelo seu subdomínio).
+3. **Action**: `forward("https://SEU-SITE.netlify.app/api/email/webhook")` (troque pelo seu
+   domínio do Netlify).
+4. Salve.
 
-### 4. Preencher as variáveis de ambiente
+### 4. Pegar as chaves
+
+No painel da Mailgun:
+
+* **API Key**: em **Account settings** → **API Keys** → copie a "Private API key".
+* **Webhook Signing Key**: na mesma página, em **Webhook signing key** (é uma chave DIFERENTE da
+  API key, usada só pra confirmar que o e-mail recebido é legítimo).
+
+### 5. Preencher as variáveis de ambiente
 
 No Netlify (Site settings → Environment variables) e no seu `.env` local:
 
-* `RESEND_API_KEY` — em **API Keys** no painel da Resend, crie uma chave nova e cole aqui.
-* `RESEND_WEBHOOK_SECRET` — o `whsec_...` que você copiou no passo anterior.
+* `MAILGUN_API_KEY` — a "Private API key" do passo anterior.
+* `MAILGUN_WEBHOOK_SIGNING_KEY` — a "Webhook signing key" do passo anterior.
+* `MAILGUN_API_BASE` — deixe o padrão (`https://api.mailgun.net/v3`), a não ser que você tenha
+  criado o domínio na região EU da Mailgun (aí use `https://api.eu.mailgun.net/v3`).
 
 Depois de adicionar no Netlify, faça um novo deploy pra elas valerem (`git commit` vazio ou
 qualquer alteração + `git push`).
 
-### 5. Conectar o endereço no ZapFlow
+### 6. Conectar o endereço no ZapFlow
 
 No painel do ZapFlow, vá em **Configurações** → card **"E-mail"** → digite o endereço que você quer
-usar (ex.: `contato@usepostflow.com`, precisa ser do domínio que você verificou) → **Conectar**.
+usar (ex.: `contato@bot.usepostflow.com`, precisa ser do domínio que você verificou) →
+**Conectar**.
 
 Pronto — e-mails recebidos nesse endereço já disparam as automações de palavra-chave/boas-vindas
 (igual Direct do Instagram/Facebook/Telegram) e o Assistente de IA, se estiver ativado.

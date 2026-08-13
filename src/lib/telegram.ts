@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { contacts, telegramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import type { SendableButton } from "@/lib/automation-types";
 
 function apiUrl(botToken: string, method: string) {
   return `https://api.telegram.org/bot${botToken}/${method}`;
@@ -73,15 +74,22 @@ export async function sendTelegramMessage(params: {
   accessToken: string; // aqui é o botToken
   recipientId?: string; // aqui é o chat_id
   text: string;
-  buttonText?: string;
-  buttonUrl?: string;
+  // só os botões do tipo "link" (web_url) viram botão de verdade aqui — o
+  // Telegram até suporta callback_data (equivalente a "ramificar"), mas essa
+  // automação ainda não trata a resposta desse tipo de botão pra esse canal,
+  // só pra Instagram/Facebook. Botões de ramificação são ignorados no Telegram.
+  buttons?: SendableButton[];
 }) {
-  const { accessToken, recipientId, text, buttonText, buttonUrl } = params;
+  const { accessToken, recipientId, text, buttons } = params;
   if (!recipientId) throw new Error("Telegram: chat_id não informado");
 
+  const linkButtons = (buttons ?? []).filter(
+    (b): b is Extract<SendableButton, { type: "web_url" }> => b.type === "web_url"
+  );
+
   const body: Record<string, unknown> = { chat_id: recipientId, text };
-  if (buttonText && buttonUrl) {
-    body.reply_markup = { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] };
+  if (linkButtons.length > 0) {
+    body.reply_markup = { inline_keyboard: [linkButtons.map((b) => ({ text: b.title, url: b.url }))] };
   }
 
   const res = await fetch(apiUrl(accessToken, "sendMessage"), {

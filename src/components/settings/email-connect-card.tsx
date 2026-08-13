@@ -42,7 +42,7 @@ export function EmailConnectCard() {
         <Input
           value={fromAddress}
           onChange={(e) => setFromAddress(e.target.value)}
-          placeholder="contato@seudominio.com"
+          placeholder="contato@bot.seudominio.com"
           className="flex-1"
         />
         <Button onClick={connect} disabled={loading || !fromAddress.trim()}>

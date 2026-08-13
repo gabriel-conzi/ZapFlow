@@ -4,50 +4,37 @@ import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import {
   fetchEmailAccountByFromAddress,
-  fetchReceivedEmailBody,
   getOrCreateEmailContact,
   parseEmailAddress,
-  verifyResendWebhookSignature,
+  verifyMailgunWebhookSignature,
 } from "@/lib/email";
 import { getOrCreateConversation } from "@/lib/instagram";
 import { handleOptControlKeyword, maybeReplyWithAi, triggerAutomationsForMessage } from "@/lib/automations";
 
-type ResendEmailReceivedEvent = {
-  type: string;
-  data: {
-    email_id: string;
-    from: string;
-    to: string[];
-    subject?: string;
-    message_id?: string;
-  };
-};
-
-// Webhook da Resend (evento "email.received"). Precisa do corpo BRUTO (texto)
-// pra verificar a assinatura antes de confiar no conteúdo — por isso lemos
-// com req.text() em vez de req.json() direto.
+// Webhook da Mailgun (Route com action forward() apontando pra cá). A Mailgun
+// manda um POST application/x-www-form-urlencoded (ou multipart/form-data se
+// tiver anexo) — diferente de outros webhooks desse app, já vem com o corpo
+// do e-mail direto, sem precisar de uma chamada extra pra API.
 export async function POST(req: Request) {
-  const rawBody = await req.text();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return new NextResponse("Invalid payload", { status: 400 });
+  }
 
-  const valid = verifyResendWebhookSignature({
-    payload: rawBody,
-    svixId: req.headers.get("svix-id"),
-    svixTimestamp: req.headers.get("svix-timestamp"),
-    svixSignature: req.headers.get("svix-signature"),
+  const valid = verifyMailgunWebhookSignature({
+    timestamp: form.get("timestamp")?.toString() ?? null,
+    token: form.get("token")?.toString() ?? null,
+    signature: form.get("signature")?.toString() ?? null,
   });
   if (!valid) {
     console.warn("[email/webhook] assinatura inválida, ignorando");
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
-  const event = JSON.parse(rawBody) as ResendEmailReceivedEvent;
-
-  if (event.type !== "email.received") {
-    return NextResponse.json({ received: true });
-  }
-
   try {
-    const toAddress = event.data.to?.[0];
+    const toAddress = form.get("recipient")?.toString();
     if (!toAddress) return NextResponse.json({ received: true });
 
     const account = await fetchEmailAccountByFromAddress(toAddress);
@@ -56,8 +43,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    const full = await fetchReceivedEmailBody(event.data.email_id);
-    const { name, email } = parseEmailAddress(full.from);
+    const fromRaw = form.get("from")?.toString() ?? form.get("sender")?.toString() ?? "";
+    const { name, email } = parseEmailAddress(fromRaw);
+    const subject = form.get("subject")?.toString() ?? "";
+    const bodyText =
+      form.get("stripped-text")?.toString().trim() ||
+      form.get("body-plain")?.toString().trim() ||
+      form
+        .get("body-html")
+        ?.toString()
+        .replace(/<[^>]+>/g, " ")
+        .trim() ||
+      null;
+    const messageId = form.get("Message-Id")?.toString() ?? null;
 
     const contact = await getOrCreateEmailContact({
       workspaceId: account.workspaceId,
@@ -72,14 +70,12 @@ export async function POST(req: Request) {
       channel: "dm",
     });
 
-    const bodyText = full.text?.trim() || full.html?.replace(/<[^>]+>/g, " ").trim() || null;
-
     await db.insert(messages).values({
       conversationId: conversation.id,
       direction: "inbound",
       sender: "contact",
       text: bodyText,
-      igMessageId: full.message_id ?? event.data.message_id ?? null,
+      igMessageId: messageId,
     });
 
     await db
@@ -88,7 +84,7 @@ export async function POST(req: Request) {
         updatedAt: new Date(),
         status: "open",
         unreadCount: sql`${conversations.unreadCount} + 1`,
-        subject: full.subject ?? event.data.subject ?? conversation.subject,
+        subject: subject || conversation.subject,
       })
       .where(eq(conversations.id, conversation.id));
 

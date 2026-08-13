@@ -2,17 +2,24 @@ import crypto from "crypto";
 import { db } from "@/db";
 import { contacts, emailAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import type { SendableButton } from "@/lib/automation-types";
 
-const RESEND_API_BASE = "https://api.resend.com";
+// api.mailgun.net (US) ou api.eu.mailgun.net (EU), dependendo da região
+// escolhida ao criar o domínio na Mailgun.
+const MAILGUN_API_BASE = process.env.MAILGUN_API_BASE || "https://api.mailgun.net/v3";
 
-function resendApiKey() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY não configurada no .env");
+function mailgunApiKey() {
+  const key = process.env.MAILGUN_API_KEY;
+  if (!key) throw new Error("MAILGUN_API_KEY não configurada no .env");
   return key;
 }
 
+function basicAuthHeader() {
+  return "Basic " + Buffer.from(`api:${mailgunApiKey()}`).toString("base64");
+}
+
 /** Acha a conta de e-mail conectada (nossa tabela `email_accounts`) a partir
- * do endereço "para" que a Resend mandou no webhook. */
+ * do endereço "para" que a Mailgun mandou no webhook. */
 export async function fetchEmailAccountByFromAddress(fromAddress: string) {
   const [account] = await db
     .select()
@@ -73,102 +80,89 @@ function escapeHtml(str: string) {
 }
 
 /**
- * Envia um e-mail via Resend. Reaproveita o mesmo formato usado pros outros
+ * Envia um e-mail via Mailgun. Reaproveita o mesmo formato usado pros outros
  * canais: `accessToken` aqui é o endereço remetente (from, já verificado na
- * Resend) e `recipientId` é o e-mail de destino — assim o motor de
- * automações (`sendPlatformMessage`) não precisa de um caso especial.
+ * Mailgun) e `recipientId` é o e-mail de destino — assim o motor de
+ * automações (`sendPlatformMessage`) não precisa de um caso especial. O
+ * domínio usado na chamada da API é extraído do próprio endereço "from"
+ * (tudo depois do @).
  */
 export async function sendEmailMessage(params: {
   accessToken: string; // endereço "de" (from)
   recipientId?: string; // e-mail do destinatário
   text: string;
   subject?: string;
-  buttonText?: string;
-  buttonUrl?: string;
+  // só os botões do tipo "link" (web_url) viram botão de verdade aqui —
+  // e-mail não tem como avisar a automação de qual botão foi clicado, então
+  // botões de ramificação não fazem sentido nesse canal e são ignorados.
+  buttons?: SendableButton[];
   inReplyTo?: string;
 }) {
-  const { accessToken: from, recipientId: to, text, subject, buttonText, buttonUrl, inReplyTo } = params;
+  const { accessToken: from, recipientId: to, text, subject, buttons, inReplyTo } = params;
   if (!to) throw new Error("E-mail sem destinatário");
 
-  const buttonHtml =
-    buttonText && buttonUrl
-      ? `<p style="margin-top:16px"><a href="${buttonUrl}" style="background:#111827;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(
-          buttonText
-        )}</a></p>`
-      : "";
+  const domain = from.split("@")[1];
+  if (!domain) throw new Error("Endereço remetente inválido");
+
+  const linkButton = (buttons ?? []).find((b): b is Extract<SendableButton, { type: "web_url" }> => b.type === "web_url");
+  const buttonHtml = linkButton
+    ? `<p style="margin-top:16px"><a href="${linkButton.url}" style="background:#111827;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(
+        linkButton.title
+      )}</a></p>`
+    : "";
   const html = `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111827">${escapeHtml(
     text
   )}${buttonHtml}</div>`;
 
-  const res = await fetch(`${RESEND_API_BASE}/emails`, {
+  const form = new URLSearchParams();
+  form.set("from", from);
+  form.set("to", to);
+  form.set("subject", subject?.trim() || "UsePostFlow");
+  form.set("text", text);
+  form.set("html", html);
+  if (inReplyTo) {
+    form.set("h:In-Reply-To", inReplyTo);
+    form.set("h:References", inReplyTo);
+  }
+
+  const res = await fetch(`${MAILGUN_API_BASE}/${domain}/messages`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${resendApiKey()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: subject?.trim() || "UsePostFlow",
-      text,
-      html,
-      ...(inReplyTo ? { headers: { "In-Reply-To": inReplyTo, References: inReplyTo } } : {}),
-    }),
+    headers: { Authorization: basicAuthHeader(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    throw new Error(data.error?.message ?? data.message ?? "Erro ao enviar e-mail pela Resend");
+  if (!res.ok) {
+    throw new Error(data.message ?? "Erro ao enviar e-mail pela Mailgun");
   }
   return { message_id: data.id as string | undefined, recipient_id: to };
 }
 
-/** Busca o corpo completo (texto/HTML) de um e-mail recebido — o webhook da
- * Resend só manda metadados (remetente, assunto, anexos), o corpo do e-mail
- * precisa dessa chamada extra na API. */
-export async function fetchReceivedEmailBody(emailId: string) {
-  const res = await fetch(`${RESEND_API_BASE}/emails/receiving/${emailId}`, {
-    headers: { Authorization: `Bearer ${resendApiKey()}` },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message ?? "Erro ao buscar corpo do e-mail recebido");
-  return data as {
-    text: string | null;
-    html: string | null;
-    subject: string;
-    from: string;
-    message_id: string;
-  };
-}
-
 /**
- * Verifica a assinatura do webhook da Resend (padrão Svix / Standard
- * Webhooks: HMAC-SHA256 sobre "{id}.{timestamp}.{corpo}", em base64). Sem
- * isso, qualquer um que descobrisse a URL do webhook poderia forjar e-mails
- * "recebidos" e disparar automações. Precisa do corpo bruto (string), antes
- * de fazer JSON.parse.
+ * Verifica a assinatura do webhook da Mailgun: HMAC-SHA256 sobre
+ * "{timestamp}{token}" (concatenados, sem separador), usando a "Webhook
+ * Signing Key" da conta (Configurações → Segurança na Mailgun — não é a
+ * mesma coisa que a chave de API). Sem isso, qualquer um que descobrisse a
+ * URL do webhook poderia forjar e-mails "recebidos" e disparar automações.
  */
-export function verifyResendWebhookSignature(params: {
-  payload: string;
-  svixId: string | null;
-  svixTimestamp: string | null;
-  svixSignature: string | null;
+export function verifyMailgunWebhookSignature(params: {
+  timestamp: string | null;
+  token: string | null;
+  signature: string | null;
 }): boolean {
-  const { payload, svixId, svixTimestamp, svixSignature } = params;
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret || !svixId || !svixTimestamp || !svixSignature) return false;
+  const { timestamp, token, signature } = params;
+  const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY;
+  if (!signingKey || !timestamp || !token || !signature) return false;
 
-  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
-  const signedContent = `${svixId}.${svixTimestamp}.${payload}`;
-  const expected = crypto.createHmac("sha256", secretBytes).update(signedContent).digest("base64");
-  const expectedBuf = Buffer.from(expected);
+  const expected = crypto
+    .createHmac("sha256", signingKey)
+    .update(timestamp.concat(token))
+    .digest("hex");
 
-  return svixSignature
-    .split(" ")
-    .map((token) => token.split(",")[1])
-    .filter(Boolean)
-    .some((sig) => {
-      try {
-        const sigBuf = Buffer.from(sig);
-        return sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
-      } catch {
-        return false;
-      }
-    });
+  try {
+    const expectedBuf = Buffer.from(expected, "hex");
+    const sigBuf = Buffer.from(signature, "hex");
+    return expectedBuf.length === sigBuf.length && crypto.timingSafeEqual(expectedBuf, sigBuf);
+  } catch {
+    return false;
+  }
 }

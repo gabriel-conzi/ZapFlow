@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, ChevronLeft, Loader2, MessageCircle, X } from "lucide-react";
-import type { FlowNode } from "@/lib/automation-types";
+import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
+import { MAX_MESSAGE_BUTTONS, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
+import type { FlowNode, SendMessageNodeData } from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
@@ -148,6 +149,91 @@ function MediaPicker({
   );
 }
 
+function ButtonsEditor({
+  data,
+  onChange,
+}: {
+  data: SendMessageNodeData;
+  onChange: (data: Partial<SendMessageNodeData>) => void;
+}) {
+  const buttons = getMessageButtons(data);
+
+  function update(next: MessageButtonData[]) {
+    // ao editar pela lista nova, larga os campos antigos (legado) de vez —
+    // daqui em diante `buttons` é a única fonte de verdade desse nó.
+    onChange({ buttons: next, buttonText: undefined, buttonUrl: undefined });
+  }
+
+  function addButton() {
+    if (buttons.length >= MAX_MESSAGE_BUTTONS) return;
+    update([...buttons, { id: crypto.randomUUID(), kind: "reply", label: "" }]);
+  }
+
+  function updateButton(id: string, partial: Partial<MessageButtonData>) {
+    update(buttons.map((b) => (b.id === id ? { ...b, ...partial } : b)));
+  }
+
+  function removeButton(id: string) {
+    update(buttons.filter((b) => b.id !== id));
+  }
+
+  return (
+    <div className="mt-4">
+      <label className="text-xs font-medium">Botões (até {MAX_MESSAGE_BUTTONS})</label>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        <b>Ramificar conversa</b>: a automação pausa depois de enviar e espera o contato apertar
+        um botão — cada um leva pra um caminho diferente do fluxo (ligue a seta que sai do botão,
+        embaixo do nó). <b>Abrir link</b>: botão de verdade que abre uma URL; a automação segue
+        direto pela saída normal do nó, sem esperar.
+      </p>
+
+      <div className="mt-2 flex flex-col gap-2">
+        {buttons.map((b) => (
+          <div key={b.id} className="rounded-md border p-2">
+            <div className="flex items-center gap-1.5">
+              <select
+                className={selectClass + " h-8 text-xs"}
+                value={b.kind}
+                onChange={(e) => updateButton(b.id, { kind: e.target.value as MessageButtonData["kind"] })}
+              >
+                <option value="reply">Ramificar conversa</option>
+                <option value="link">Abrir link</option>
+              </select>
+              <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => removeButton(b.id)}>
+                <Trash2 size={13} />
+              </Button>
+            </div>
+            <Input
+              className="mt-1.5 h-8 text-xs"
+              value={b.label}
+              onChange={(e) => updateButton(b.id, { label: e.target.value })}
+              placeholder="Texto do botão (ex: Quero saber mais)"
+            />
+            {b.kind === "link" && (
+              <Input
+                className="mt-1.5 h-8 text-xs"
+                value={b.url ?? ""}
+                onChange={(e) => updateButton(b.id, { url: e.target.value })}
+                placeholder="https://..."
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-2 w-full"
+        onClick={addButton}
+        disabled={buttons.length >= MAX_MESSAGE_BUTTONS}
+      >
+        <Plus size={13} /> Adicionar botão
+      </Button>
+    </div>
+  );
+}
+
 export function NodePanel({
   node,
   onChange,
@@ -233,24 +319,7 @@ export function NodePanel({
               placeholder="Escreva a mensagem que será enviada..."
             />
 
-            <div className="mt-4">
-              <label className="text-xs font-medium">Botão (opcional)</label>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Em vez de colar um link no texto, manda um botão de verdade abaixo da mensagem.
-              </p>
-              <Input
-                className="mt-2"
-                value={node.data.buttonText ?? ""}
-                onChange={(e) => onChange({ buttonText: e.target.value || undefined })}
-                placeholder="Texto do botão (ex: Ver planos)"
-              />
-              <Input
-                className="mt-2"
-                value={node.data.buttonUrl ?? ""}
-                onChange={(e) => onChange({ buttonUrl: e.target.value || undefined })}
-                placeholder="https://..."
-              />
-            </div>
+            <ButtonsEditor data={node.data} onChange={onChange} />
           </div>
         )}
 
