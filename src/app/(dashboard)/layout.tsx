@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const links = [
   { href: "/dashboard", label: "Início", icon: LayoutDashboard },
@@ -37,11 +38,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/30">
       <aside className="flex w-60 shrink-0 flex-col border-r bg-background">
-        <div className="flex items-center gap-2 px-5 py-5 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-primary text-white">
-            <Camera size={15} />
-          </span>
-          ZapFlow
+        <div className="flex items-center justify-between gap-2 px-5 py-5">
+          <div className="flex items-center gap-2 font-semibold">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-fuchsia-500 to-primary text-white">
+              <Camera size={15} />
+            </span>
+            ZapFlow
+          </div>
+          <ThemeToggle />
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {links.map(({ href, label, icon: Icon }) => (
