@@ -89,6 +89,12 @@ export function toSendableButtons(data: SendMessageNodeData): SendableButton[] {
   });
 }
 
+// Anexo genérico de mídia — usado como parâmetro comum pelas funções de
+// envio de cada canal (sendInstagramMessage, sendFacebookMessage,
+// sendTelegramMessage, sendEmailMessage), pra não precisar de um parâmetro
+// separado (imageUrl, videoUrl, ...) pra cada tipo.
+export type MediaAttachment = { type: "image" | "video" | "audio" | "file"; url: string };
+
 export type SendImageNodeData = {
   label?: string;
   // URL pública de uma imagem (ex: link do Instagram/Facebook, Imgur, Google
@@ -99,6 +105,28 @@ export type SendImageNodeData = {
   // junto na mesma mensagem; no Instagram/Facebook a Meta não permite
   // legenda dentro do anexo de imagem, então vai como uma 2ª mensagem
   // (texto) logo em seguida.
+  caption?: string;
+};
+
+// Mesma ideia do nó de imagem (link público, ZapFlow não hospeda nada) —
+// usados pelos nós "Enviar vídeo", "Enviar arquivo" e "Enviar áudio". Mesma
+// regra de legenda: Telegram e e-mail mandam junto na mesma mensagem;
+// Instagram/Facebook mandam como uma 2ª mensagem (texto) logo em seguida.
+export type SendVideoNodeData = {
+  label?: string;
+  mediaUrl: string;
+  caption?: string;
+};
+
+export type SendFileNodeData = {
+  label?: string;
+  mediaUrl: string;
+  caption?: string;
+};
+
+export type SendAudioNodeData = {
+  label?: string;
+  mediaUrl: string;
   caption?: string;
 };
 
@@ -161,6 +189,9 @@ export type FlowNode =
   | { id: string; type: "trigger"; position: Position; data: TriggerNodeData }
   | { id: string; type: "sendMessage"; position: Position; data: SendMessageNodeData }
   | { id: string; type: "sendImage"; position: Position; data: SendImageNodeData }
+  | { id: string; type: "sendVideo"; position: Position; data: SendVideoNodeData }
+  | { id: string; type: "sendFile"; position: Position; data: SendFileNodeData }
+  | { id: string; type: "sendAudio"; position: Position; data: SendAudioNodeData }
   | { id: string; type: "delay"; position: Position; data: DelayNodeData }
   | { id: string; type: "addTag"; position: Position; data: AddTagNodeData }
   | { id: string; type: "condition"; position: Position; data: ConditionNodeData }

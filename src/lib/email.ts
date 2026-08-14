@@ -2,7 +2,17 @@ import crypto from "crypto";
 import { db } from "@/db";
 import { contacts, emailAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import type { SendableButton } from "@/lib/automation-types";
+import type { MediaAttachment, SendableButton } from "@/lib/automation-types";
+
+// Rótulo do link/botão de download pra cada tipo de mídia que não é imagem
+// (vídeo, áudio, arquivo) — e-mail não tem suporte confiável a embutir
+// vídeo/áudio tocando direto no corpo (varia demais entre provedores de
+// e-mail), então esses tipos viram um botão de link que abre o arquivo.
+const MEDIA_LINK_LABEL: Record<Exclude<MediaAttachment["type"], "image">, string> = {
+  video: "▶ Assistir vídeo",
+  audio: "🎧 Ouvir áudio",
+  file: "📎 Baixar arquivo",
+};
 
 // api.mailgun.net (US) ou api.eu.mailgun.net (EU), dependendo da região
 // escolhida ao criar o domínio na Mailgun.
@@ -97,11 +107,12 @@ export async function sendEmailMessage(params: {
   // botões de ramificação não fazem sentido nesse canal e são ignorados.
   buttons?: SendableButton[];
   inReplyTo?: string;
-  // se vier preenchido, embute essa imagem no corpo do e-mail (acima do
-  // texto, que nesse caso funciona como legenda).
-  imageUrl?: string;
+  // se vier preenchido, embute essa mídia no corpo do e-mail (acima do
+  // texto, que nesse caso funciona como legenda). Imagem é embutida direto;
+  // vídeo/áudio/arquivo viram um botão de link (ver `MEDIA_LINK_LABEL`).
+  media?: MediaAttachment;
 }) {
-  const { accessToken: from, recipientId: to, text, subject, buttons, inReplyTo, imageUrl } = params;
+  const { accessToken: from, recipientId: to, text, subject, buttons, inReplyTo, media } = params;
   if (!to) throw new Error("E-mail sem destinatário");
 
   const domain = from.split("@")[1];
@@ -113,10 +124,14 @@ export async function sendEmailMessage(params: {
         linkButton.title
       )}</a></p>`
     : "";
-  const imageHtml = imageUrl
-    ? `<p><img src="${imageUrl}" alt="" style="max-width:100%;border-radius:8px;display:block" /></p>`
-    : "";
-  const html = `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111827">${imageHtml}${escapeHtml(
+  const mediaHtml = !media
+    ? ""
+    : media.type === "image"
+    ? `<p><img src="${media.url}" alt="" style="max-width:100%;border-radius:8px;display:block" /></p>`
+    : `<p><a href="${media.url}" style="background:#111827;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">${
+        MEDIA_LINK_LABEL[media.type]
+      }</a></p>`;
+  const html = `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111827">${mediaHtml}${escapeHtml(
     text
   )}${buttonHtml}</div>`;
 

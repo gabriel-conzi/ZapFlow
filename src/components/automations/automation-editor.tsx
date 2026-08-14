@@ -35,6 +35,10 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
       return { text: "", buttons: [] };
     case "sendImage":
       return { imageUrl: "", caption: "" };
+    case "sendVideo":
+    case "sendFile":
+    case "sendAudio":
+      return { mediaUrl: "", caption: "" };
     case "delay":
       return { amount: 1, unit: "hours" };
     case "addTag":

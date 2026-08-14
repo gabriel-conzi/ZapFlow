@@ -6,7 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { MAX_MESSAGE_BUTTONS, getConditionRules, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
-import type { ConditionNodeData, ConditionRule, FlowNode, SendImageNodeData, SendMessageNodeData } from "@/lib/automation-types";
+import type {
+  ConditionNodeData,
+  ConditionRule,
+  FlowNode,
+  SendAudioNodeData,
+  SendFileNodeData,
+  SendImageNodeData,
+  SendMessageNodeData,
+  SendVideoNodeData,
+} from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
@@ -425,6 +434,106 @@ function ImageNodeEditor({
   );
 }
 
+type MediaNodeData = SendVideoNodeData | SendFileNodeData | SendAudioNodeData;
+
+const MEDIA_KIND_LABELS: Record<"video" | "audio" | "file", { field: string; hint: string; captionHint: string }> = {
+  video: {
+    field: "Link do vídeo",
+    hint: "Cole o link de um vídeo publicado em algum lugar (ex: um link direto de vídeo .mp4, Google Drive com link público, etc.). O ZapFlow não guarda o arquivo, só manda esse link pra Meta/Telegram/e-mail buscarem o vídeo na hora de enviar.",
+    captionHint:
+      "No Telegram e no e-mail a legenda vai junto com o vídeo. No Instagram/Facebook a Meta não permite misturar vídeo e texto na mesma mensagem, então a legenda chega como uma 2ª mensagem, logo em seguida.",
+  },
+  audio: {
+    field: "Link do áudio",
+    hint: "Cole o link de um arquivo de áudio (ex: .mp3, .ogg) publicado em algum lugar com link público. O ZapFlow não guarda o arquivo, só manda esse link na hora de enviar.",
+    captionHint:
+      "No Telegram e no e-mail a legenda vai junto com o áudio. No Instagram/Facebook a Meta não permite misturar áudio e texto na mesma mensagem, então a legenda chega como uma 2ª mensagem, logo em seguida.",
+  },
+  file: {
+    field: "Link do arquivo",
+    hint: "Cole o link de um arquivo (ex: PDF, .zip, .docx) publicado em algum lugar com link público (ex: Google Drive com link público, Dropbox). O ZapFlow não guarda o arquivo, só manda esse link na hora de enviar.",
+    captionHint:
+      "No Telegram e no e-mail a legenda vai junto com o arquivo. No Instagram/Facebook a Meta não permite misturar arquivo e texto na mesma mensagem, então a legenda chega como uma 2ª mensagem, logo em seguida.",
+  },
+};
+
+function MediaNodeEditor({
+  kind,
+  data,
+  onChange,
+}: {
+  kind: "video" | "audio" | "file";
+  data: MediaNodeData;
+  onChange: (data: Partial<MediaNodeData>) => void;
+}) {
+  const [mediaError, setMediaError] = useState(false);
+  const url = data.mediaUrl?.trim();
+  const labels = MEDIA_KIND_LABELS[kind];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <label className="text-xs font-medium">{labels.field}</label>
+        <Input
+          className="mt-1"
+          value={data.mediaUrl ?? ""}
+          onChange={(e) => {
+            setMediaError(false);
+            onChange({ mediaUrl: e.target.value });
+          }}
+          placeholder="https://..."
+        />
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{labels.hint}</p>
+
+        {url && kind === "video" && (
+          <video
+            controls
+            src={url}
+            className="mt-2 max-h-40 w-full rounded-md border bg-black"
+            onError={() => setMediaError(true)}
+            onLoadedData={() => setMediaError(false)}
+          />
+        )}
+        {url && kind === "audio" && (
+          <audio
+            controls
+            src={url}
+            className="mt-2 w-full"
+            onError={() => setMediaError(true)}
+            onLoadedData={() => setMediaError(false)}
+          />
+        )}
+        {url && kind === "file" && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block text-[11px] text-primary underline"
+          >
+            Abrir link pra conferir
+          </a>
+        )}
+        {url && mediaError && (
+          <p className="mt-2 text-[11px] text-destructive">
+            Não consegui carregar esse link — confira se está certo e é público.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="text-xs font-medium">Legenda (opcional)</label>
+        <Textarea
+          className="mt-1"
+          value={data.caption ?? ""}
+          onChange={(e) => onChange({ caption: e.target.value })}
+          placeholder="Escreva um texto pra acompanhar o envio..."
+        />
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{labels.captionHint}</p>
+      </div>
+    </div>
+  );
+}
+
 export function NodePanel({
   node,
   onChange,
@@ -515,6 +624,12 @@ export function NodePanel({
         )}
 
         {node.type === "sendImage" && <ImageNodeEditor data={node.data} onChange={onChange} />}
+
+        {node.type === "sendVideo" && <MediaNodeEditor kind="video" data={node.data} onChange={onChange} />}
+
+        {node.type === "sendAudio" && <MediaNodeEditor kind="audio" data={node.data} onChange={onChange} />}
+
+        {node.type === "sendFile" && <MediaNodeEditor kind="file" data={node.data} onChange={onChange} />}
 
         {node.type === "delay" && (
           <div className="flex flex-col gap-4">

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { contacts, facebookPages } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import type { SendableButton } from "@/lib/automation-types";
+import type { MediaAttachment, SendableButton } from "@/lib/automation-types";
 
 export const FB_GRAPH_VERSION = "v21.0";
 
@@ -111,16 +111,17 @@ export async function sendFacebookMessage(params: {
   commentId?: string;
   text: string;
   buttons?: SendableButton[];
-  // se vier preenchido, manda a imagem desse link como anexo — nesse caso
-  // `text`/`buttons` são ignorados (a Graph API não permite misturar anexo
-  // de imagem com texto/botões na mesma mensagem).
-  imageUrl?: string;
+  // se vier preenchido, manda esse arquivo como anexo (imagem, vídeo, áudio
+  // ou arquivo genérico) — nesse caso `text`/`buttons` são ignorados (a
+  // Graph API não permite misturar anexo de mídia com texto/botões na
+  // mesma mensagem).
+  media?: MediaAttachment;
 }) {
-  const { accessToken, recipientId, commentId, text, buttons, imageUrl } = params;
+  const { accessToken, recipientId, commentId, text, buttons, media } = params;
   const recipient = commentId ? { comment_id: commentId } : { id: recipientId };
 
-  const message = imageUrl
-    ? { attachment: { type: "image", payload: { url: imageUrl, is_reusable: true } } }
+  const message = media
+    ? { attachment: { type: media.type, payload: { url: media.url, is_reusable: true } } }
     : buttons?.length
     ? {
         attachment: {

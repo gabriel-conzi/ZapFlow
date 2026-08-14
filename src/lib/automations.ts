@@ -26,8 +26,8 @@ import type {
   AddTagNodeData,
   ConditionNodeData,
   ConditionRule,
+  MediaAttachment,
   SendMessageNodeData,
-  SendImageNodeData,
   SendableButton,
 } from "@/lib/automation-types";
 
@@ -56,7 +56,7 @@ export function sendPlatformMessage(
     text: string;
     subject?: string;
     buttons?: SendableButton[];
-    imageUrl?: string;
+    media?: MediaAttachment;
   }
 ) {
   if (platform === "facebook") return sendFacebookMessage(params);
@@ -507,8 +507,15 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
         continue;
       }
 
-      if (node.type === "sendImage") {
-        await executeSendImage(current, node.data);
+      if (
+        node.type === "sendImage" ||
+        node.type === "sendVideo" ||
+        node.type === "sendFile" ||
+        node.type === "sendAudio"
+      ) {
+        const mediaType = node.type === "sendImage" ? "image" : node.type === "sendVideo" ? "video" : node.type === "sendAudio" ? "audio" : "file";
+        const mediaUrl = node.type === "sendImage" ? node.data.imageUrl : node.data.mediaUrl;
+        await executeSendMedia(current, mediaType, mediaUrl, node.data.caption);
         if (current.commentId) {
           // mesma regra do nó "Enviar mensagem": o comment_id só vale pra 1 envio
           await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
@@ -664,22 +671,34 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     .where(eq(conversations.id, run.conversationId));
 }
 
-/** Manda um nó "Enviar imagem". No Telegram e no e-mail, imagem + legenda
- * vão juntas numa mensagem só. No Instagram/Facebook a Meta não permite
- * misturar anexo de imagem com texto na mesma mensagem — nesses canais a
- * legenda (se tiver) vira uma 2ª mensagem de texto, mandada logo em
- * seguida, já usando `recipientId` (o `comment_id`, se veio de um
- * comentário, só vale pra 1 envio — a imagem consome ele). */
-async function executeSendImage(run: RunRow, data: SendImageNodeData) {
+const MEDIA_PLACEHOLDER_TEXT: Record<MediaAttachment["type"], string> = {
+  image: "[imagem]",
+  video: "[vídeo]",
+  audio: "[áudio]",
+  file: "[arquivo]",
+};
+
+/** Manda um nó "Enviar imagem/vídeo/arquivo/áudio". No Telegram e no
+ * e-mail, mídia + legenda vão juntas numa mensagem só. No Instagram/
+ * Facebook a Meta não permite misturar anexo de mídia com texto na mesma
+ * mensagem — nesses canais a legenda (se tiver) vira uma 2ª mensagem de
+ * texto, mandada logo em seguida, já usando `recipientId` (o `comment_id`,
+ * se veio de um comentário, só vale pra 1 envio — a mídia consome ele). */
+async function executeSendMedia(
+  run: RunRow,
+  mediaType: MediaAttachment["type"],
+  rawUrl: string | undefined,
+  rawCaption: string | undefined
+) {
   if (!run.conversationId) throw new Error("Execução sem conversa associada");
-  const imageUrl = data.imageUrl?.trim();
-  if (!imageUrl) return; // nó mal configurado: não faz nada, mas não quebra o fluxo
+  const url = rawUrl?.trim();
+  if (!url) return; // nó mal configurado: não faz nada, mas não quebra o fluxo
 
   const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
   if (!contact) throw new Error("Contato não encontrado");
 
   const { accessToken, platform } = await resolveContactChannel(contact);
-  const caption = data.caption?.trim() ? interpolateFields(data.caption, contact.customFields) : undefined;
+  const caption = rawCaption?.trim() ? interpolateFields(rawCaption, contact.customFields) : undefined;
   const captionInSameMessage = platform === "telegram" || platform === "email";
 
   const result = await sendPlatformMessage(platform, {
@@ -687,7 +706,7 @@ async function executeSendImage(run: RunRow, data: SendImageNodeData) {
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,
     text: captionInSameMessage ? caption ?? "" : "",
-    imageUrl,
+    media: { type: mediaType, url },
     subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
   });
 
@@ -695,7 +714,7 @@ async function executeSendImage(run: RunRow, data: SendImageNodeData) {
     conversationId: run.conversationId,
     direction: "outbound",
     sender: "automation",
-    text: captionInSameMessage && caption ? caption : "[imagem]",
+    text: captionInSameMessage && caption ? caption : MEDIA_PLACEHOLDER_TEXT[mediaType],
     igMessageId: result.message_id ?? null,
     automationId: run.automationId,
   });

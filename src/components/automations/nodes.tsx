@@ -1,7 +1,19 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ClipboardList, Clock, GitBranch, Image as ImageIcon, MessageSquareText, Send, Tag, Zap } from "lucide-react";
+import {
+  ClipboardList,
+  Clock,
+  FileText,
+  GitBranch,
+  Image as ImageIcon,
+  MessageSquareText,
+  Music,
+  Send,
+  Tag,
+  Video,
+  Zap,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getConditionRules, getMessageButtons } from "@/lib/automation-types";
 import type {
@@ -9,8 +21,11 @@ import type {
   CollectDataNodeData,
   ConditionNodeData,
   DelayNodeData,
+  SendAudioNodeData,
+  SendFileNodeData,
   SendImageNodeData,
   SendMessageNodeData,
+  SendVideoNodeData,
   TriggerNodeData,
 } from "@/lib/automation-types";
 
@@ -200,6 +215,36 @@ export function SendImageNode({ data, selected }: NodeProps & { data: SendImageN
   );
 }
 
+export function SendVideoNode({ data, selected }: NodeProps & { data: SendVideoNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<Video size={13} />} iconClassName="bg-violet-500" title="Enviar vídeo">
+      <p className="truncate">{data.mediaUrl || <em>nenhum vídeo definido</em>}</p>
+      {data.caption && <p className="mt-1 line-clamp-2">{data.caption}</p>}
+      <Handle type="source" position={Position.Bottom} className="!bg-violet-500" />
+    </NodeShell>
+  );
+}
+
+export function SendFileNode({ data, selected }: NodeProps & { data: SendFileNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<FileText size={13} />} iconClassName="bg-slate-500" title="Enviar arquivo">
+      <p className="truncate">{data.mediaUrl || <em>nenhum arquivo definido</em>}</p>
+      {data.caption && <p className="mt-1 line-clamp-2">{data.caption}</p>}
+      <Handle type="source" position={Position.Bottom} className="!bg-slate-500" />
+    </NodeShell>
+  );
+}
+
+export function SendAudioNode({ data, selected }: NodeProps & { data: SendAudioNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<Music size={13} />} iconClassName="bg-orange-500" title="Enviar áudio">
+      <p className="truncate">{data.mediaUrl || <em>nenhum áudio definido</em>}</p>
+      {data.caption && <p className="mt-1 line-clamp-2">{data.caption}</p>}
+      <Handle type="source" position={Position.Bottom} className="!bg-orange-500" />
+    </NodeShell>
+  );
+}
+
 export function DelayNode({ data, selected }: NodeProps & { data: DelayNodeData }) {
   const unitLabel =
     { seconds: "segundo(s)", minutes: "minuto(s)", hours: "hora(s)", days: "dia(s)" }[data.unit] ?? data.unit;
@@ -280,6 +325,9 @@ export const nodeTypes = {
   trigger: TriggerNode,
   sendMessage: SendMessageNode,
   sendImage: SendImageNode,
+  sendVideo: SendVideoNode,
+  sendFile: SendFileNode,
+  sendAudio: SendAudioNode,
   delay: DelayNode,
   addTag: AddTagNode,
   condition: ConditionNode,
@@ -287,13 +335,25 @@ export const nodeTypes = {
 };
 
 export const paletteItems: Array<{
-  type: "sendMessage" | "sendImage" | "delay" | "addTag" | "condition" | "collectData";
+  type:
+    | "sendMessage"
+    | "sendImage"
+    | "sendVideo"
+    | "sendFile"
+    | "sendAudio"
+    | "delay"
+    | "addTag"
+    | "condition"
+    | "collectData";
   label: string;
   icon: React.ReactNode;
   iconClassName: string;
 }> = [
   { type: "sendMessage", label: "Enviar mensagem", icon: <MessageSquareText size={14} />, iconClassName: "bg-primary" },
   { type: "sendImage", label: "Enviar imagem", icon: <ImageIcon size={14} />, iconClassName: "bg-rose-500" },
+  { type: "sendVideo", label: "Enviar vídeo", icon: <Video size={14} />, iconClassName: "bg-violet-500" },
+  { type: "sendAudio", label: "Enviar áudio", icon: <Music size={14} />, iconClassName: "bg-orange-500" },
+  { type: "sendFile", label: "Enviar arquivo", icon: <FileText size={14} />, iconClassName: "bg-slate-500" },
   { type: "collectData", label: "Capturar dado", icon: <ClipboardList size={14} />, iconClassName: "bg-cyan-600" },
   { type: "delay", label: "Esperar", icon: <Clock size={14} />, iconClassName: "bg-sky-500" },
   { type: "addTag", label: "Adicionar tag", icon: <Tag size={14} />, iconClassName: "bg-emerald-500" },

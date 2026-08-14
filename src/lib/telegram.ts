@@ -1,7 +1,16 @@
 import { db } from "@/db";
 import { contacts, telegramAccounts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import type { SendableButton } from "@/lib/automation-types";
+import type { MediaAttachment, SendableButton } from "@/lib/automation-types";
+
+// Cada tipo de mídia usa um método e um nome de campo diferente na API do
+// Telegram (diferente da Meta, que usa sempre "attachment" com um `type`).
+const TELEGRAM_MEDIA_METHOD: Record<MediaAttachment["type"], { method: string; field: string }> = {
+  image: { method: "sendPhoto", field: "photo" },
+  video: { method: "sendVideo", field: "video" },
+  audio: { method: "sendAudio", field: "audio" },
+  file: { method: "sendDocument", field: "document" },
+};
 
 function apiUrl(botToken: string, method: string) {
   return `https://api.telegram.org/bot${botToken}/${method}`;
@@ -79,24 +88,26 @@ export async function sendTelegramMessage(params: {
   // automação ainda não trata a resposta desse tipo de botão pra esse canal,
   // só pra Instagram/Facebook. Botões de ramificação são ignorados no Telegram.
   buttons?: SendableButton[];
-  // se vier preenchido, manda a imagem desse link (com `text` como legenda,
-  // se tiver) via sendPhoto em vez de sendMessage — o Telegram permite
-  // imagem + legenda na mesma mensagem, diferente do Instagram/Facebook.
-  imageUrl?: string;
+  // se vier preenchido, manda esse arquivo (com `text` como legenda, se
+  // tiver) via sendPhoto/sendVideo/sendAudio/sendDocument (dependendo do
+  // `type`) em vez de sendMessage — o Telegram permite mídia + legenda na
+  // mesma mensagem, diferente do Instagram/Facebook.
+  media?: MediaAttachment;
 }) {
-  const { accessToken, recipientId, text, buttons, imageUrl } = params;
+  const { accessToken, recipientId, text, buttons, media } = params;
   if (!recipientId) throw new Error("Telegram: chat_id não informado");
 
-  if (imageUrl) {
-    const body: Record<string, unknown> = { chat_id: recipientId, photo: imageUrl };
+  if (media) {
+    const { method, field } = TELEGRAM_MEDIA_METHOD[media.type];
+    const body: Record<string, unknown> = { chat_id: recipientId, [field]: media.url };
     if (text?.trim()) body.caption = text;
-    const res = await fetch(apiUrl(accessToken, "sendPhoto"), {
+    const res = await fetch(apiUrl(accessToken, method), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.description ?? "Erro ao enviar imagem no Telegram");
+    if (!data.ok) throw new Error(data.description ?? "Erro ao enviar arquivo no Telegram");
     return { message_id: String(data.result?.message_id ?? ""), recipient_id: recipientId };
   }
 
