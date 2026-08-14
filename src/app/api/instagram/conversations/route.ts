@@ -22,6 +22,7 @@ export async function GET() {
         name: contacts.name,
         username: contacts.username,
         profilePicUrl: contacts.profilePicUrl,
+        platform: contacts.platform,
       },
     })
     .from(conversations)

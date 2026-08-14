@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Inbox as InboxIcon, Loader2, Send } from "lucide-react";
+import { Inbox as InboxIcon, Loader2, Mail, Send } from "lucide-react";
 
 type ConversationPreview = {
   id: string;
@@ -19,9 +19,55 @@ type ConversationPreview = {
     name: string | null;
     username: string | null;
     profilePicUrl: string | null;
+    platform: string;
   };
   lastMessage: { text: string | null; direction: string; createdAt: string } | null;
 };
+
+// Uma cor/ícone por rede — usado no selo redondo colado no avatar (lista e
+// cabeçalho da conversa) pra dar pra ver de onde a mensagem veio sem precisar
+// abrir a conversa.
+const PLATFORM_INFO: Record<string, { label: string; className: string; content: React.ReactNode }> = {
+  instagram: {
+    label: "Instagram",
+    className: "bg-gradient-to-br from-purple-600 via-pink-500 to-amber-400",
+    content: <span className="text-[8px] font-bold leading-none text-white">IG</span>,
+  },
+  facebook: {
+    label: "Facebook",
+    className: "bg-[#1877F2]",
+    content: <span className="text-[9px] font-bold leading-none text-white">f</span>,
+  },
+  telegram: {
+    label: "Telegram",
+    className: "bg-[#29A9EA]",
+    content: <Send size={9} className="text-white" strokeWidth={2.5} />,
+  },
+  email: {
+    label: "E-mail",
+    className: "bg-slate-500",
+    content: <Mail size={9} className="text-white" strokeWidth={2.5} />,
+  },
+};
+
+function PlatformBadge({ platform }: { platform: string }) {
+  const info = PLATFORM_INFO[platform] ?? {
+    label: platform,
+    className: "bg-muted-foreground",
+    content: <span className="text-[8px] font-bold leading-none text-white">?</span>,
+  };
+  return (
+    <span
+      title={info.label}
+      className={cn(
+        "absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full ring-2 ring-card",
+        info.className
+      )}
+    >
+      {info.content}
+    </span>
+  );
+}
 
 type Message = {
   id: string;
@@ -159,10 +205,13 @@ export function InboxClient() {
                   isSelected && "bg-accent"
                 )}
               >
-                <Avatar>
-                  {c.contact.profilePicUrl && <AvatarImage src={c.contact.profilePicUrl} alt={label} />}
-                  <AvatarFallback>{initials(label)}</AvatarFallback>
-                </Avatar>
+                <span className="relative shrink-0">
+                  <Avatar>
+                    {c.contact.profilePicUrl && <AvatarImage src={c.contact.profilePicUrl} alt={label} />}
+                    <AvatarFallback>{initials(label)}</AvatarFallback>
+                  </Avatar>
+                  <PlatformBadge platform={c.contact.platform} />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -206,14 +255,22 @@ export function InboxClient() {
         ) : (
           <>
             <div className="flex items-center gap-3 border-b px-5 py-3">
-              <Avatar>
-                {selected.contact.profilePicUrl && (
-                  <AvatarImage src={selected.contact.profilePicUrl} alt={contactLabel(selected.contact)} />
-                )}
-                <AvatarFallback>{initials(contactLabel(selected.contact))}</AvatarFallback>
-              </Avatar>
+              <span className="relative shrink-0">
+                <Avatar>
+                  {selected.contact.profilePicUrl && (
+                    <AvatarImage src={selected.contact.profilePicUrl} alt={contactLabel(selected.contact)} />
+                  )}
+                  <AvatarFallback>{initials(contactLabel(selected.contact))}</AvatarFallback>
+                </Avatar>
+                <PlatformBadge platform={selected.contact.platform} />
+              </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{contactLabel(selected.contact)}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">{contactLabel(selected.contact)}</p>
+                  <span className="text-xs text-muted-foreground">
+                    · {PLATFORM_INFO[selected.contact.platform]?.label ?? selected.contact.platform}
+                  </span>
+                </div>
                 {selected.contact.username && (
                   <p className="truncate text-xs text-muted-foreground">@{selected.contact.username}</p>
                 )}
