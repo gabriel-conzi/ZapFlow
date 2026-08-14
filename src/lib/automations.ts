@@ -517,6 +517,15 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
           continue;
         }
         await executeSendMessage(current, { text: node.data.question });
+        if (current.commentId) {
+          // mesma regra do nó "Enviar mensagem": o comment_id (resposta
+          // privada a um comentário) só vale pra 1 mensagem. Sem isso, a
+          // próxima mensagem do fluxo (depois do contato responder) tenta
+          // reusar o mesmo comment_id e a Meta rejeita ("Activity already
+          // replied to" no Facebook, erro genérico no Instagram).
+          await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
+          current = { ...current, commentId: null };
+        }
         await db
           .update(automationRuns)
           .set({ status: "waiting", resumeAt: null, nextNodeId: node.id, updatedAt: new Date() })
