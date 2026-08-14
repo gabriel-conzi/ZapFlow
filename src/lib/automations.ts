@@ -67,7 +67,7 @@ export function sendPlatformMessage(
 
 /** Busca o assunto guardado da conversa (só existe pro canal de e-mail) e
  * devolve pronto pra usar como "Re: assunto original". */
-async function emailReplySubject(conversationId: string | null): Promise<string | undefined> {
+export async function emailReplySubject(conversationId: string | null): Promise<string | undefined> {
   if (!conversationId) return undefined;
   const [conv] = await db
     .select({ subject: conversations.subject })
@@ -593,7 +593,7 @@ function computeResumeAt(data: DelayNodeData): Date {
 /** Descobre a conta/token certos pra mandar mensagem pro contato, de acordo
  * com a plataforma dele. Compartilhado por qualquer nó que precise enviar
  * algo (mensagem, imagem, etc). */
-async function resolveContactChannel(contact: typeof contacts.$inferSelect): Promise<{
+export async function resolveContactChannel(contact: typeof contacts.$inferSelect): Promise<{
   accessToken: string;
   platform: Platform;
 }> {

@@ -344,9 +344,12 @@ export function InboxClient() {
                   {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </Button>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                O Instagram só deixa responder até 24h depois da última mensagem do contato.
-              </p>
+              {(selected.contact.platform === "instagram" || selected.contact.platform === "facebook") && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  {selected.contact.platform === "facebook" ? "O Messenger" : "O Instagram"} só deixa
+                  responder até 24h depois da última mensagem do contato.
+                </p>
+              )}
             </div>
           </>
         )}
