@@ -134,9 +134,9 @@ function IncomingBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-end gap-1.5">
       <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-neutral-700 text-neutral-300">
-        <User size={9} />
+        <User size={10} />
       </span>
-      <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-neutral-800 px-2 py-1 text-[10px] leading-snug text-neutral-100">
+      <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-neutral-800 px-2 py-1 text-[11px] leading-snug text-neutral-100">
         {children}
       </div>
     </div>
@@ -146,7 +146,7 @@ function IncomingBubble({ children }: { children: React.ReactNode }) {
 function OutgoingBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-gradient-to-br from-fuchsia-600 to-purple-600 px-2 py-1 text-[10px] leading-snug text-white">
+      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-gradient-to-br from-fuchsia-600 to-purple-600 px-2 py-1 text-[11px] leading-snug text-white">
         {children}
       </div>
     </div>
@@ -156,7 +156,7 @@ function OutgoingBubble({ children }: { children: React.ReactNode }) {
 function SystemPill({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-center">
-      <span className="inline-flex items-center rounded-full bg-neutral-800/70 px-2 py-0.5 text-center text-[9px] text-neutral-400">
+      <span className="inline-flex items-center rounded-full bg-neutral-800/70 px-2 py-0.5 text-center text-[10px] text-neutral-400">
         {children}
       </span>
     </div>
@@ -179,31 +179,31 @@ function MediaBubble({
 
   return (
     <div className="flex justify-end">
-      <div className="flex max-w-[85%] flex-col gap-1 rounded-2xl rounded-br-sm bg-neutral-800 p-1">
+      <div className="flex w-[85%] max-w-[220px] flex-col gap-1 rounded-2xl rounded-br-sm bg-neutral-800 p-1">
         {!trimmed ? (
-          <p className="max-w-32 px-1 py-1 text-[9px] italic text-neutral-500">nenhum link definido ainda</p>
+          <p className="px-1 py-1 text-[10px] italic text-neutral-500">nenhum link definido ainda</p>
         ) : error ? (
-          <p className="max-w-32 px-1 py-1.5 text-[9px] text-red-400">
+          <p className="px-1 py-1.5 text-[10px] text-red-400">
             Não consegui carregar esse link — confira se está certo e é público.
           </p>
         ) : type === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element -- URL externa escolhida pelo usuário
-          <img src={trimmed} alt="" className="max-h-28 w-32 rounded-lg object-cover" onError={() => setError(true)} />
+          <img src={trimmed} alt="" className="max-h-28 w-full rounded-lg object-cover" onError={() => setError(true)} />
         ) : type === "video" ? (
-          <video controls src={trimmed} className="max-h-28 w-32 rounded-lg bg-black" onError={() => setError(true)} />
+          <video controls src={trimmed} className="max-h-28 w-full rounded-lg bg-black" onError={() => setError(true)} />
         ) : type === "audio" ? (
-          <audio controls src={trimmed} className="w-36" onError={() => setError(true)} />
+          <audio controls src={trimmed} className="w-full" onError={() => setError(true)} />
         ) : (
           <a
             href={trimmed}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1 px-1 py-1 text-[9px] text-purple-200 underline"
+            className="flex items-center gap-1 px-1 py-1 text-[10px] text-purple-200 underline"
           >
             <FileText size={11} /> Abrir arquivo
           </a>
         )}
-        {caption && <p className="px-1 pb-0.5 text-[9px] leading-snug text-neutral-200">{renderFieldTokens(caption, fields)}</p>}
+        {caption && <p className="px-1 pb-0.5 text-[10px] leading-snug text-neutral-200">{renderFieldTokens(caption, fields)}</p>}
       </div>
     </div>
   );
@@ -219,7 +219,7 @@ function ReplyButtonsPreview({ node }: { node: Extract<FlowNode, { type: "sendMe
       {buttons.map((b) => (
         <span
           key={b.id}
-          className="rounded-full border border-purple-400/60 bg-neutral-900 px-2 py-0.5 text-[9px] font-medium text-purple-200"
+          className="rounded-full border border-purple-400/60 bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-purple-200"
         >
           {b.kind === "link" ? "🔗 " : ""}
           {b.label || (b.kind === "link" ? "Abrir link" : "Continuar")}
@@ -269,21 +269,21 @@ function StepBubbles({ node }: { node: FlowNode }) {
       const unitLabel = DELAY_UNIT_LABEL[node.data.unit] ?? node.data.unit;
       return (
         <SystemPill>
-          <Clock size={9} className="mr-1" /> espera {node.data.amount} {unitLabel}
+          <Clock size={10} className="mr-1" /> espera {node.data.amount} {unitLabel}
         </SystemPill>
       );
     }
     case "addTag":
       return (
         <SystemPill>
-          <Tag size={9} className="mr-1" /> tag: {node.data.tagName || "?"} (invisível pro contato)
+          <Tag size={10} className="mr-1" /> tag: {node.data.tagName || "?"} (invisível pro contato)
         </SystemPill>
       );
     case "condition": {
       const rules = getConditionRules(node.data);
       return (
         <SystemPill>
-          <GitBranch size={9} className="mr-1" /> verifica condição
+          <GitBranch size={10} className="mr-1" /> verifica condição
           {rules.length > 0 ? ` (${rules.length} critério${rules.length > 1 ? "s" : ""})` : ""}
         </SystemPill>
       );
@@ -296,9 +296,9 @@ function StepBubbles({ node }: { node: FlowNode }) {
 function VisualizationPanel({ flow, selectedNodeId }: { flow: AutomationFlow; selectedNodeId: string | null }) {
   const path = useMemo(() => findPathToNode(flow, selectedNodeId), [flow, selectedNodeId]);
   return (
-    <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-2 py-2.5">
+    <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden px-2 py-2.5">
       {path.length === 0 ? (
-        <p className="mt-6 px-2 text-center text-[10px] text-neutral-500">
+        <p className="mt-6 px-2 text-center text-[11px] text-neutral-500">
           Clique num passo do fluxo pra ver aqui como ele vai aparecer pro contato.
         </p>
       ) : (
@@ -345,7 +345,7 @@ function TestStepView({
                     href={b.url || "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-full border border-purple-400/60 bg-neutral-900 px-2 py-0.5 text-[9px] font-medium text-purple-200 underline"
+                    className="rounded-full border border-purple-400/60 bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-purple-200 underline"
                   >
                     🔗 {b.label || "Abrir link"}
                   </a>
@@ -356,7 +356,7 @@ function TestStepView({
                     disabled={!interactiveButtons}
                     onClick={() => onButtonClick(b.id, b.label)}
                     className={cn(
-                      "rounded-full border px-2 py-0.5 text-[9px] font-medium transition-colors",
+                      "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
                       interactiveButtons
                         ? "cursor-pointer border-purple-400 bg-neutral-900 text-purple-200 hover:bg-purple-900"
                         : "border-purple-400/30 bg-neutral-900/50 text-purple-200/50"
@@ -385,21 +385,21 @@ function TestStepView({
       const unitLabel = DELAY_UNIT_LABEL[node.data.unit] ?? node.data.unit;
       return (
         <SystemPill>
-          <Clock size={9} className="mr-1" /> esperaria {node.data.amount} {unitLabel} (pulado no teste)
+          <Clock size={10} className="mr-1" /> esperaria {node.data.amount} {unitLabel} (pulado no teste)
         </SystemPill>
       );
     }
     case "addTag":
       return (
         <SystemPill>
-          <Tag size={9} className="mr-1" /> tag adicionada: {node.data.tagName || "?"}
+          <Tag size={10} className="mr-1" /> tag adicionada: {node.data.tagName || "?"}
         </SystemPill>
       );
     case "condition": {
       const rules = getConditionRules(node.data);
       return (
         <SystemPill>
-          <GitBranch size={9} className="mr-1" /> condição
+          <GitBranch size={10} className="mr-1" /> condição
           {rules.length > 0 ? ` (${rules.length} critério${rules.length > 1 ? "s" : ""})` : ""} → seguiu por &quot;
           {resultNote ?? "?"}&quot;
         </SystemPill>
@@ -558,9 +558,9 @@ function TestPanel({ flow }: { flow: AutomationFlow }) {
 
   return (
     <>
-      <div ref={scrollRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-2 py-2.5">
+      <div ref={scrollRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden px-2 py-2.5">
         {entries.length === 0 ? (
-          <p className="mt-6 px-2 text-center text-[10px] text-neutral-500">
+          <p className="mt-6 px-2 text-center text-[11px] text-neutral-500">
             Digite abaixo uma mensagem que bateria com o gatilho dessa automação pra ver ela rodar de verdade, aqui
             mesmo — sem mandar nada pelo Instagram.
           </p>
@@ -592,7 +592,7 @@ function TestPanel({ flow }: { flow: AutomationFlow }) {
               if (e.key === "Enter") handleSend();
             }}
             placeholder={placeholder}
-            className="min-w-0 flex-1 bg-transparent text-[10px] text-neutral-200 placeholder:text-neutral-500 outline-none disabled:cursor-not-allowed"
+            className="min-w-0 flex-1 bg-transparent text-[11px] text-neutral-200 placeholder:text-neutral-500 outline-none disabled:cursor-not-allowed"
           />
           <button
             type="button"
@@ -609,9 +609,9 @@ function TestPanel({ flow }: { flow: AutomationFlow }) {
         <button
           type="button"
           onClick={reset}
-          className="flex items-center gap-1 text-[9px] text-neutral-500 hover:text-neutral-300"
+          className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-300"
         >
-          <RotateCcw size={9} /> Reiniciar
+          <RotateCcw size={10} /> Reiniciar
         </button>
       </div>
     </>
@@ -634,13 +634,13 @@ export function FlowPreview({
   const [tab, setTab] = useState<Tab>("visualizacao");
 
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-l bg-muted/30 p-2.5">
+    <div className="flex h-full w-80 shrink-0 flex-col border-l bg-muted/30 p-3">
       <div className="mb-2 flex items-center justify-center gap-1 rounded-full bg-muted p-0.5">
         <button
           type="button"
           onClick={() => setTab("visualizacao")}
           className={cn(
-            "flex-1 rounded-full px-2 py-1 text-[10px] font-medium transition-colors",
+            "flex-1 rounded-full px-2 py-1 text-[11px] font-medium transition-colors",
             tab === "visualizacao" ? "bg-background shadow-sm" : "text-muted-foreground"
           )}
         >
@@ -650,7 +650,7 @@ export function FlowPreview({
           type="button"
           onClick={() => setTab("teste")}
           className={cn(
-            "flex-1 rounded-full px-2 py-1 text-[10px] font-medium transition-colors",
+            "flex-1 rounded-full px-2 py-1 text-[11px] font-medium transition-colors",
             tab === "teste" ? "bg-background shadow-sm" : "text-muted-foreground"
           )}
         >
@@ -658,14 +658,14 @@ export function FlowPreview({
         </button>
       </div>
 
-      <div className="mx-auto flex w-[180px] flex-col overflow-hidden rounded-[22px] border-[5px] border-neutral-900 bg-neutral-950 shadow-lg" style={{ aspectRatio: "9 / 19" }}>
+      <div className="mx-auto flex w-[240px] flex-col overflow-hidden rounded-[26px] border-[6px] border-neutral-900 bg-neutral-950 shadow-lg" style={{ aspectRatio: "9 / 19" }}>
         <div className="flex shrink-0 items-center gap-1.5 border-b border-neutral-800 px-2.5 py-1.5">
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-700 text-neutral-300">
             <User size={11} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-medium text-white">Contato de teste</p>
-            <p className="truncate text-[9px] text-neutral-500">{automationName || "Automação"}</p>
+            <p className="truncate text-[11px] font-medium text-white">Contato de teste</p>
+            <p className="truncate text-[10px] text-neutral-500">{automationName || "Automação"}</p>
           </div>
         </div>
 
@@ -676,7 +676,7 @@ export function FlowPreview({
         )}
       </div>
 
-      <p className="mt-2 px-1 text-center text-[9px] leading-relaxed text-muted-foreground">
+      <p className="mt-2 px-1 text-center text-[10px] leading-relaxed text-muted-foreground">
         {tab === "visualizacao"
           ? "Isso é só uma simulação visual — nenhuma mensagem de verdade é enviada aqui."
           : "O teste roda só aqui no navegador — não manda nada pelo Instagram/Facebook/Telegram/e-mail de verdade."}
