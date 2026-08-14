@@ -266,6 +266,7 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
             onPaneClick={() => setSelectedId(null)}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
+            proOptions={{ hideAttribution: true }}
           >
             <Background gap={16} />
             <Controls />
@@ -282,6 +283,7 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
         )}
 
         <FlowPreview flow={flowForPreview} selectedNodeId={selectedId} automationName={name} />
+
       </div>
     </div>
   );
