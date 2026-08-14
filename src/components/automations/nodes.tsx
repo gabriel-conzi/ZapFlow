@@ -3,7 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ClipboardList, Clock, GitBranch, MessageSquareText, Send, Tag, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMessageButtons } from "@/lib/automation-types";
+import { getConditionRules, getMessageButtons } from "@/lib/automation-types";
 import type {
   AddTagNodeData,
   CollectDataNodeData,
@@ -12,6 +12,14 @@ import type {
   SendMessageNodeData,
   TriggerNodeData,
 } from "@/lib/automation-types";
+
+const CONDITION_OPERATOR_SYMBOLS: Record<string, string> = {
+  equals: "=",
+  notEquals: "≠",
+  contains: "contém",
+  isEmpty: "vazio",
+  isNotEmpty: "preenchido",
+};
 
 function NodeShell({
   selected,
@@ -192,11 +200,22 @@ export function AddTagNode({ data, selected }: NodeProps & { data: AddTagNodeDat
 }
 
 export function ConditionNode({ data, selected }: NodeProps & { data: ConditionNodeData }) {
+  const rules = getConditionRules(data);
+  const summary =
+    rules.length === 0
+      ? "nenhum critério definido"
+      : rules
+          .map((r) => {
+            if (r.kind === "tag") return `tag "${r.tagName || "?"}"`;
+            const op = r.operator ?? "equals";
+            const showValue = op !== "isEmpty" && op !== "isNotEmpty";
+            return `${r.fieldName || "?"} ${CONDITION_OPERATOR_SYMBOLS[op]}${showValue ? ` "${r.value || ""}"` : ""}`;
+          })
+          .join(data.combinator === "or" ? "  OU  " : "  E  ");
+
   return (
     <NodeShell selected={selected} icon={<GitBranch size={13} />} iconClassName="bg-fuchsia-500" title="Condição">
-      <p className="truncate">
-        Contato tem a tag <b>{data.tagName || "?"}</b>?
-      </p>
+      <p className="line-clamp-3">{summary}</p>
       <div className="mt-2 flex items-center justify-between text-[10px]">
         <span className="text-red-500">Não ↙</span>
         <span className="text-green-600">Sim ↘</span>

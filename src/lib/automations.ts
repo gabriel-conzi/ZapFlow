@@ -19,12 +19,13 @@ import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmailMessage } from "@/lib/email";
 import { generateAiReply } from "@/lib/ai";
-import { getMessageButtons, hasReplyButtons, toSendableButtons } from "@/lib/automation-types";
+import { getConditionRules, getMessageButtons, hasReplyButtons, toSendableButtons } from "@/lib/automation-types";
 import type {
   AutomationFlow,
   DelayNodeData,
   AddTagNodeData,
   ConditionNodeData,
+  ConditionRule,
   SendMessageNodeData,
   SendableButton,
 } from "@/lib/automation-types";
@@ -675,23 +676,63 @@ async function executeAddTag(run: RunRow, data: AddTagNodeData) {
   }
 }
 
+/** Avalia 1 critério do nó de condição — "tem a tag X" ou uma comparação
+ * contra um campo salvo por um nó "Capturar dado" anterior. */
+async function evaluateConditionRule(run: RunRow, workspaceId: string, rule: ConditionRule): Promise<boolean> {
+  if (rule.kind === "tag") {
+    if (!rule.tagName?.trim()) return false;
+    const [tag] = await db
+      .select()
+      .from(tags)
+      .where(and(eq(tags.workspaceId, workspaceId), eq(tags.name, rule.tagName.trim())))
+      .limit(1);
+    if (!tag) return false;
+
+    const [link] = await db
+      .select()
+      .from(contactTags)
+      .where(and(eq(contactTags.contactId, run.contactId), eq(contactTags.tagId, tag.id)))
+      .limit(1);
+    return Boolean(link);
+  }
+
+  // rule.kind === "field"
+  if (!rule.fieldName?.trim()) return false;
+  const [contact] = await db
+    .select({ customFields: contacts.customFields })
+    .from(contacts)
+    .where(eq(contacts.id, run.contactId))
+    .limit(1);
+  const fields = contact?.customFields && typeof contact.customFields === "object" ? contact.customFields : {};
+  const raw = fields[rule.fieldName.trim()];
+  const value = typeof raw === "string" ? raw.trim() : "";
+  const compareTo = (rule.value ?? "").trim();
+
+  switch (rule.operator) {
+    case "isEmpty":
+      return value === "";
+    case "isNotEmpty":
+      return value !== "";
+    case "notEquals":
+      return value.toLowerCase() !== compareTo.toLowerCase();
+    case "contains":
+      return compareTo !== "" && value.toLowerCase().includes(compareTo.toLowerCase());
+    case "equals":
+    default:
+      return value.toLowerCase() === compareTo.toLowerCase();
+  }
+}
+
+/** Avalia o nó de condição inteiro: junta todos os critérios pelo
+ * combinador escolhido ("and" = todos precisam bater, "or" = basta 1). Sem
+ * nenhum critério configurado, o nó nunca bate (segue pela saída "Não"). */
 async function evaluateCondition(run: RunRow, data: ConditionNodeData) {
-  if (!data.tagName?.trim()) return false;
+  const rules = getConditionRules(data);
+  if (rules.length === 0) return false;
 
   const [automation] = await db.select().from(automations).where(eq(automations.id, run.automationId)).limit(1);
   if (!automation) return false;
 
-  const [tag] = await db
-    .select()
-    .from(tags)
-    .where(and(eq(tags.workspaceId, automation.workspaceId), eq(tags.name, data.tagName.trim())))
-    .limit(1);
-  if (!tag) return false;
-
-  const [link] = await db
-    .select()
-    .from(contactTags)
-    .where(and(eq(contactTags.contactId, run.contactId), eq(contactTags.tagId, tag.id)))
-    .limit(1);
-  return Boolean(link);
+  const results = await Promise.all(rules.map((rule) => evaluateConditionRule(run, automation.workspaceId, rule)));
+  return data.combinator === "or" ? results.some(Boolean) : results.every(Boolean);
 }

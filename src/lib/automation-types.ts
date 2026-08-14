@@ -100,10 +100,39 @@ export type AddTagNodeData = {
   tagName: string;
 };
 
+// Um critério de condição — "tem a tag X" ou "o campo capturado Y bate com
+// tal comparação". Formato flat (campos opcionais dependendo de `kind`),
+// igual ao padrão já usado em MessageButtonData.
+export type ConditionRule = {
+  id: string;
+  kind: "tag" | "field";
+  tagName?: string; // usado quando kind === "tag"
+  fieldName?: string; // usado quando kind === "field" — nome salvo por um nó "Capturar dado"
+  operator?: "equals" | "notEquals" | "contains" | "isEmpty" | "isNotEmpty"; // usado quando kind === "field"
+  value?: string; // usado quando kind === "field" e operator não é isEmpty/isNotEmpty
+};
+
 export type ConditionNodeData = {
   label?: string;
-  tagName: string;
+  // campo antigo (de antes de existirem múltiplos critérios) — mantido só
+  // pra automações salvas nesse formato continuarem funcionando. Não usar em
+  // código novo: use `rules` e a função `getConditionRules`.
+  tagName?: string;
+  rules?: ConditionRule[];
+  // "and" = TODOS os critérios precisam bater; "or" = basta UM bater. Só
+  // importa quando `rules` tem 2 ou mais itens.
+  combinator?: "and" | "or";
 };
+
+/** Devolve os critérios de um nó de condição já normalizados, migrando o
+ * campo antigo (`tagName`, de antes de existirem múltiplos critérios/E-OU)
+ * pra dentro de `rules` quando for o caso. Use isso em vez de ler
+ * `data.rules` direto. */
+export function getConditionRules(data: ConditionNodeData): ConditionRule[] {
+  if (data.rules?.length) return data.rules;
+  if (data.tagName?.trim()) return [{ id: "legacy-tag", kind: "tag", tagName: data.tagName }];
+  return [];
+}
 
 export type CollectDataNodeData = {
   label?: string;

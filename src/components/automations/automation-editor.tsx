@@ -38,7 +38,7 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
     case "addTag":
       return { tagName: "" };
     case "condition":
-      return { tagName: "" };
+      return { rules: [], combinator: "and" };
     case "collectData":
       return { question: "", fieldName: "" };
     case "trigger":

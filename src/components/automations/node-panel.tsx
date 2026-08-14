@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
-import { MAX_MESSAGE_BUTTONS, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
-import type { FlowNode, SendMessageNodeData } from "@/lib/automation-types";
+import { MAX_MESSAGE_BUTTONS, getConditionRules, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
+import type { ConditionNodeData, ConditionRule, FlowNode, SendMessageNodeData } from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
@@ -234,6 +234,133 @@ function ButtonsEditor({
   );
 }
 
+const OPERATOR_LABELS: Record<NonNullable<ConditionRule["operator"]>, string> = {
+  equals: "é igual a",
+  notEquals: "é diferente de",
+  contains: "contém",
+  isEmpty: "está vazio",
+  isNotEmpty: "não está vazio",
+};
+
+function ConditionRulesEditor({
+  data,
+  onChange,
+}: {
+  data: ConditionNodeData;
+  onChange: (data: Partial<ConditionNodeData>) => void;
+}) {
+  const rules = getConditionRules(data);
+
+  function update(next: ConditionRule[]) {
+    // ao editar pela lista nova, larga o campo antigo (legado) de vez —
+    // daqui em diante `rules` é a única fonte de verdade desse nó.
+    onChange({ rules: next, tagName: undefined });
+  }
+
+  function addRule() {
+    update([...rules, { id: crypto.randomUUID(), kind: "tag", tagName: "" }]);
+  }
+
+  function updateRule(id: string, partial: Partial<ConditionRule>) {
+    update(rules.map((r) => (r.id === id ? { ...r, ...partial } : r)));
+  }
+
+  function removeRule(id: string) {
+    update(rules.filter((r) => r.id !== id));
+  }
+
+  return (
+    <div>
+      {rules.length > 1 && (
+        <div className="mb-3">
+          <label className="text-xs font-medium">Como combinar os critérios</label>
+          <select
+            className={selectClass + " mt-1"}
+            value={data.combinator ?? "and"}
+            onChange={(e) => onChange({ combinator: e.target.value as "and" | "or" })}
+          >
+            <option value="and">E — todos os critérios precisam bater</option>
+            <option value="or">OU — basta um dos critérios bater</option>
+          </select>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {rules.map((r) => (
+          <div key={r.id} className="rounded-md border p-2">
+            <div className="flex items-center gap-1.5">
+              <select
+                className={selectClass + " h-8 text-xs"}
+                value={r.kind}
+                onChange={(e) =>
+                  updateRule(
+                    r.id,
+                    e.target.value === "tag"
+                      ? { kind: "tag", tagName: "", fieldName: undefined, operator: undefined, value: undefined }
+                      : { kind: "field", fieldName: "", operator: "equals", value: "", tagName: undefined }
+                  )
+                }
+              >
+                <option value="tag">Tem a tag...</option>
+                <option value="field">Campo capturado...</option>
+              </select>
+              <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => removeRule(r.id)}>
+                <Trash2 size={13} />
+              </Button>
+            </div>
+
+            {r.kind === "tag" ? (
+              <Input
+                className="mt-1.5 h-8 text-xs"
+                value={r.tagName ?? ""}
+                onChange={(e) => updateRule(r.id, { tagName: e.target.value })}
+                placeholder="interessado"
+              />
+            ) : (
+              <>
+                <Input
+                  className="mt-1.5 h-8 text-xs"
+                  value={r.fieldName ?? ""}
+                  onChange={(e) => updateRule(r.id, { fieldName: e.target.value })}
+                  placeholder="cidade"
+                />
+                <select
+                  className={selectClass + " mt-1.5 h-8 text-xs"}
+                  value={r.operator ?? "equals"}
+                  onChange={(e) => updateRule(r.id, { operator: e.target.value as ConditionRule["operator"] })}
+                >
+                  {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                {r.operator !== "isEmpty" && r.operator !== "isNotEmpty" && (
+                  <Input
+                    className="mt-1.5 h-8 text-xs"
+                    value={r.value ?? ""}
+                    onChange={(e) => updateRule(r.id, { value: e.target.value })}
+                    placeholder="São Paulo"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <Button variant="outline" size="sm" className="mt-2 w-full" onClick={addRule}>
+        <Plus size={13} /> Adicionar critério
+      </Button>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        &quot;Campo capturado&quot; compara com o valor salvo por um nó &quot;Capturar dado&quot; anterior no fluxo
+        (ex: <code>cidade</code>). Conecte a saída <b>Sim</b> e a saída <b>Não</b> pra caminhos diferentes do fluxo.
+      </p>
+    </div>
+  );
+}
+
 export function NodePanel({
   node,
   onChange,
@@ -370,20 +497,7 @@ export function NodePanel({
           </div>
         )}
 
-        {node.type === "condition" && (
-          <div>
-            <label className="text-xs font-medium">O contato tem a tag...</label>
-            <Input
-              className="mt-1"
-              value={node.data.tagName}
-              onChange={(e) => onChange({ tagName: e.target.value })}
-              placeholder="interessado"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Conecte a saída <b>Sim</b> e a saída <b>Não</b> pra caminhos diferentes do fluxo.
-            </p>
-          </div>
-        )}
+        {node.type === "condition" && <ConditionRulesEditor data={node.data} onChange={onChange} />}
 
         {node.type === "collectData" && (
           <div className="flex flex-col gap-4">
