@@ -86,16 +86,15 @@ export async function getOrCreateConversation(params: {
 }) {
   const { workspaceId, contactId, channel = "dm" } = params;
 
+  // Uma única conversa por contato — comentário e Direct do mesmo contato
+  // caem na mesma linha do tempo na Inbox (como no ManyChat), em vez de
+  // aparecerem como duas conversas separadas pra mesma pessoa. `channel` só
+  // é usado pra marcar a origem quando a conversa é criada pela primeira vez
+  // (mostra a etiqueta "comentário" na lista da Inbox).
   const [existing] = await db
     .select()
     .from(conversations)
-    .where(
-      and(
-        eq(conversations.workspaceId, workspaceId),
-        eq(conversations.contactId, contactId),
-        eq(conversations.channel, channel)
-      )
-    )
+    .where(and(eq(conversations.workspaceId, workspaceId), eq(conversations.contactId, contactId)))
     .limit(1);
   if (existing) return existing;
 
