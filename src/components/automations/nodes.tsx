@@ -76,6 +76,16 @@ export function TriggerNode({ data, selected }: NodeProps & { data: TriggerNodeD
   );
 }
 
+// Uma cor por botão de ramificação (até MAX_MESSAGE_BUTTONS = 3), reaproveitada
+// tanto no "chip" do botão quanto na bolinha numerada colada na linha/handle
+// que sai dele — assim dá pra ver de longe qual linha responde qual botão,
+// sem precisar clicar/testar pra descobrir.
+const REPLY_COLORS = [
+  { chip: "border-fuchsia-400 text-fuchsia-600", badge: "bg-fuchsia-500", handle: "!bg-fuchsia-500" },
+  { chip: "border-blue-400 text-blue-600", badge: "bg-blue-500", handle: "!bg-blue-500" },
+  { chip: "border-orange-400 text-orange-600", badge: "bg-orange-500", handle: "!bg-orange-500" },
+];
+
 export function SendMessageNode({ data, selected }: NodeProps & { data: SendMessageNodeData }) {
   const buttons = getMessageButtons(data);
   const replyButtons = buttons.filter((b) => b.kind === "reply");
@@ -87,35 +97,70 @@ export function SendMessageNode({ data, selected }: NodeProps & { data: SendMess
 
       {buttons.length > 0 && (
         <div className="mt-1.5 flex flex-col gap-1">
-          {buttons.map((b) => (
-            <span
-              key={b.id}
-              className="truncate rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-            >
-              {b.kind === "link" ? "🔗 " : "↪ "}
-              {b.label || <em>sem texto</em>}
-            </span>
-          ))}
+          {buttons.map((b) => {
+            // só botão de "ramificar conversa" (reply) tem uma linha/handle de
+            // verdade saindo dele — botão de link abre a URL e não ramifica,
+            // então não ganha número/cor (não haveria linha pra combinar).
+            const replyIdx = b.kind === "reply" ? replyButtons.findIndex((rb) => rb.id === b.id) : -1;
+            const color = replyIdx >= 0 ? REPLY_COLORS[replyIdx % REPLY_COLORS.length] : null;
+            return (
+              <span
+                key={b.id}
+                className={cn(
+                  "flex items-center gap-1.5 truncate rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                  color ? color.chip : "border-primary/40 text-primary"
+                )}
+              >
+                {color ? (
+                  <span
+                    className={cn(
+                      "flex size-3.5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white",
+                      color.badge
+                    )}
+                  >
+                    {replyIdx + 1}
+                  </span>
+                ) : (
+                  <span className="shrink-0">🔗</span>
+                )}
+                <span className="truncate">{b.label || <em>sem texto</em>}</span>
+              </span>
+            );
+          })}
         </div>
       )}
 
       {hasReply && (
         <p className="mt-1.5 text-[10px] italic text-muted-foreground">
-          Pausa aqui até o contato escolher um botão ↓ (na mesma ordem da lista acima)
+          Pausa aqui até o contato escolher um botão — a bolinha numerada ↓ tem a mesma cor/número do botão acima
         </p>
       )}
 
       {hasReply ? (
-        replyButtons.map((b, i) => (
-          <Handle
-            key={b.id}
-            type="source"
-            position={Position.Bottom}
-            id={b.id}
-            style={{ left: `${((i + 1) / (replyButtons.length + 1)) * 100}%` }}
-            className="!bg-fuchsia-500"
-          />
-        ))
+        replyButtons.flatMap((b, i) => {
+          const color = REPLY_COLORS[i % REPLY_COLORS.length];
+          const left = ((i + 1) / (replyButtons.length + 1)) * 100;
+          return [
+            <span
+              key={`${b.id}-badge`}
+              className={cn(
+                "pointer-events-none absolute z-10 flex size-3.5 -translate-x-1/2 items-center justify-center rounded-full text-[9px] font-bold text-white ring-2 ring-card",
+                color.badge
+              )}
+              style={{ left: `${left}%`, bottom: -2 }}
+            >
+              {i + 1}
+            </span>,
+            <Handle
+              key={b.id}
+              type="source"
+              position={Position.Bottom}
+              id={b.id}
+              style={{ left: `${left}%` }}
+              className={color.handle}
+            />,
+          ];
+        })
       ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-primary" />
       )}
