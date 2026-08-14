@@ -15,7 +15,7 @@ import {
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { ArrowLeft, BarChart3, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { nodeTypes, paletteItems } from "@/components/automations/nodes";
@@ -190,6 +190,12 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
           {savedAt && !error && (
             <span className="text-xs text-muted-foreground">Salvo às {savedAt.toLocaleTimeString("pt-BR")}</span>
           )}
+          <Link href={`/automations/${automation.id}/stats`}>
+            <Button variant="outline" size="sm">
+              <BarChart3 size={14} />
+              Estatísticas
+            </Button>
+          </Link>
           <select
             value={status}
             onChange={(e) => handleStatusChange(e.target.value)}

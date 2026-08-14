@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Copy, Loader2, Plus, Trash2, Workflow } from "lucide-react";
+import { BarChart3, Copy, Loader2, Plus, Trash2, Workflow } from "lucide-react";
 import type { AutomationFlow } from "@/lib/automation-types";
 
 type AutomationRow = {
@@ -137,6 +137,11 @@ export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
                       <option value="paused">Pausada</option>
                     </select>
                     <Badge variant={status.variant}>{status.label}</Badge>
+                    <Link href={`/automations/${automation.id}/stats`}>
+                      <Button variant="ghost" size="icon" title="Ver estatísticas">
+                        <BarChart3 size={14} />
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="icon"
