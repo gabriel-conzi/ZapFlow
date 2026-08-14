@@ -179,6 +179,8 @@ async function processMessagingEntry(entry: IgEntry) {
             conversationId: conversation.id,
             messageText: msg.text ?? null,
             isFirstMessage,
+            channelPlatform: "instagram",
+            channelAccountId: account.id,
           });
 
           if (!matched) {
@@ -263,6 +265,8 @@ async function processCommentEntry(entry: IgEntry) {
           commentId: comment.id,
           commentText: comment.text ?? null,
           mediaId: comment.media?.id ?? null,
+          channelPlatform: "instagram",
+          channelAccountId: account.id,
         });
       }
     } catch (err) {

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { MAX_MESSAGE_BUTTONS, getConditionRules, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
 import type {
+  AccountScopeEntry,
   ConditionNodeData,
   ConditionRule,
   FlowNode,
@@ -16,6 +17,8 @@ import type {
   SendMessageNodeData,
   SendVideoNodeData,
 } from "@/lib/automation-types";
+
+type ConnectedAccountOption = { platform: AccountScopeEntry["platform"]; id: string; label: string };
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
@@ -152,6 +155,70 @@ function MediaPicker({
               <span className="flex-1 line-clamp-2 text-[11px]">{m.caption || "Sem legenda"}</span>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Deixa escolher em quais contas conectadas (Instagram/Facebook/Telegram/
+ * e-mail) essa automação vale — ver `accountScope` em automation-types.ts.
+ * Some sozinho se o workspace só tem 1 conta conectada (ou nenhuma), já que
+ * aí não existe escolha a fazer. */
+function AccountScopeEditor({
+  scope,
+  accounts,
+  onChange,
+}: {
+  scope?: AccountScopeEntry[];
+  accounts: ConnectedAccountOption[];
+  onChange: (scope: AccountScopeEntry[] | undefined) => void;
+}) {
+  if (accounts.length < 2) return null;
+
+  const allSelected = !scope || scope.length === 0;
+
+  function toggleAccount(acc: ConnectedAccountOption) {
+    const current = scope ?? [];
+    const exists = current.some((s) => s.platform === acc.platform && s.id === acc.id);
+    const next = exists
+      ? current.filter((s) => !(s.platform === acc.platform && s.id === acc.id))
+      : [...current, { platform: acc.platform, id: acc.id }];
+    onChange(next.length === 0 ? undefined : next);
+  }
+
+  return (
+    <div>
+      <label className="text-xs font-medium">Contas em que essa automação vale</label>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        Por padrão, vale pra todas as contas conectadas. Desmarque &quot;Todas as contas&quot; pra
+        escolher só algumas — útil quando você tem mais de uma conta conectada e quer que cada
+        uma responda de um jeito diferente.
+      </p>
+      <label className="mt-2 flex items-center gap-2 rounded-md border p-2 text-xs">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={(e) =>
+            onChange(e.target.checked ? undefined : accounts.map((a) => ({ platform: a.platform, id: a.id })))
+          }
+        />
+        Todas as contas conectadas
+      </label>
+      {!allSelected && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {accounts.map((acc) => {
+            const checked = (scope ?? []).some((s) => s.platform === acc.platform && s.id === acc.id);
+            return (
+              <label
+                key={`${acc.platform}-${acc.id}`}
+                className="flex items-center gap-2 rounded-md border p-2 text-xs"
+              >
+                <input type="checkbox" checked={checked} onChange={() => toggleAccount(acc)} />
+                {acc.label}
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
@@ -539,11 +606,13 @@ export function NodePanel({
   onChange,
   onDelete,
   onClose,
+  connectedAccounts = [],
 }: {
   node: FlowNode;
   onChange: (data: Partial<FlowNode["data"]>) => void;
   onDelete?: () => void;
   onClose: () => void;
+  connectedAccounts?: ConnectedAccountOption[];
 }) {
   return (
     <div className="flex h-full w-72 shrink-0 flex-col border-l bg-background">
@@ -606,6 +675,12 @@ export function NodePanel({
                 </p>
               </>
             )}
+
+            <AccountScopeEditor
+              scope={node.data.accountScope}
+              accounts={connectedAccounts}
+              onChange={(accountScope) => onChange({ accountScope })}
+            />
           </div>
         )}
 

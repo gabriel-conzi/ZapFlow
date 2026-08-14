@@ -112,6 +112,8 @@ export async function POST(req: Request) {
         conversationId: conversation.id,
         messageText: bodyText,
         isFirstMessage,
+        channelPlatform: "email",
+        channelAccountId: account.id,
       });
 
       if (!matched) {

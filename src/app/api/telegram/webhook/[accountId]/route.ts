@@ -93,6 +93,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ account
         conversationId: conversation.id,
         messageText: msg.text,
         isFirstMessage,
+        channelPlatform: "telegram",
+        channelAccountId: account.id,
       });
 
       if (!matched) {

@@ -19,8 +19,9 @@ import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmailMessage } from "@/lib/email";
 import { generateAiReply } from "@/lib/ai";
-import { getConditionRules, getMessageButtons, hasReplyButtons, toSendableButtons } from "@/lib/automation-types";
+import { getConditionRules, getMessageButtons, hasReplyButtons, matchesAccountScope, toSendableButtons } from "@/lib/automation-types";
 import type {
+  AccountScopeEntry,
   AutomationFlow,
   DelayNodeData,
   AddTagNodeData,
@@ -204,8 +205,13 @@ export async function triggerAutomationsForMessage(params: {
   conversationId: string;
   messageText: string | null;
   isFirstMessage: boolean;
+  // conta conectada que recebeu essa mensagem — usado pra filtrar automações
+  // que só valem pra conta(s) específica(s) (ver `accountScope` no gatilho).
+  channelPlatform: AccountScopeEntry["platform"];
+  channelAccountId: string;
 }): Promise<boolean> {
-  const { workspaceId, contactId, conversationId, messageText, isFirstMessage } = params;
+  const { workspaceId, contactId, conversationId, messageText, isFirstMessage, channelPlatform, channelAccountId } =
+    params;
 
   const [contact] = await db
     .select({ optedOut: contacts.optedOut })
@@ -221,6 +227,10 @@ export async function triggerAutomationsForMessage(params: {
 
   for (const automation of active) {
     const flow = automation.flow as AutomationFlow;
+    const trigger = flow.nodes.find((n) => n.type === "trigger");
+    if (trigger?.type === "trigger" && !matchesAccountScope(trigger.data, channelPlatform, channelAccountId)) {
+      continue;
+    }
     if (matchesTrigger(flow, { kind: "dm", messageText, isFirstMessage })) {
       await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId });
       // só dispara a primeira automação que bater, pra não mandar respostas duplicadas
@@ -285,8 +295,13 @@ export async function triggerAutomationsForComment(params: {
   commentId: string;
   commentText: string | null;
   mediaId: string | null;
+  // Página/conta que recebeu o comentário — mesmo filtro de `accountScope`
+  // usado em `triggerAutomationsForMessage`.
+  channelPlatform: "instagram" | "facebook";
+  channelAccountId: string;
 }) {
-  const { workspaceId, contactId, conversationId, commentId, commentText, mediaId } = params;
+  const { workspaceId, contactId, conversationId, commentId, commentText, mediaId, channelPlatform, channelAccountId } =
+    params;
 
   const [contact] = await db
     .select({ optedOut: contacts.optedOut })
@@ -302,6 +317,10 @@ export async function triggerAutomationsForComment(params: {
 
   for (const automation of active) {
     const flow = automation.flow as AutomationFlow;
+    const trigger = flow.nodes.find((n) => n.type === "trigger");
+    if (trigger?.type === "trigger" && !matchesAccountScope(trigger.data, channelPlatform, channelAccountId)) {
+      continue;
+    }
     if (matchesTrigger(flow, { kind: "comment", commentText, mediaId })) {
       await startAutomationRun({ automationId: automation.id, flow, contactId, conversationId, commentId });
       break;

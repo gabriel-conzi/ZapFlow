@@ -172,6 +172,8 @@ async function processMessagingEntry(entry: FbEntry) {
             conversationId: conversation.id,
             messageText: msg.text ?? null,
             isFirstMessage,
+            channelPlatform: "facebook",
+            channelAccountId: page.id,
           });
 
           if (!matched) {
@@ -264,6 +266,8 @@ async function processFeedEntry(entry: FbEntry) {
           commentId: item.comment_id,
           commentText: item.message ?? null,
           mediaId: item.post_id ?? null,
+          channelPlatform: "facebook",
+          channelAccountId: page.id,
         });
       }
     } catch (err) {

@@ -3,6 +3,13 @@
 
 export type Position = { x: number; y: number };
 
+// Uma conta/página conectada específica — usado pra restringir em quais
+// contas uma automação vale (ver `accountScope` abaixo).
+export type AccountScopeEntry = {
+  platform: "instagram" | "facebook" | "telegram" | "email";
+  id: string; // id da linha em instagramAccounts/facebookPages/telegramAccounts/emailAccounts
+};
+
 export type TriggerNodeData = {
   label?: string;
   triggerType: "keyword" | "welcome" | "comment";
@@ -16,7 +23,25 @@ export type TriggerNodeData = {
   // posts diferentes). Deixe em branco pra valer em qualquer post.
   mediaId?: string;
   mediaLabel?: string; // legenda curta só pra exibir no editor
+  // em quais contas conectadas essa automação vale. `undefined`/lista vazia
+  // = vale pra todas as contas do workspace (comportamento de sempre, mantém
+  // automações antigas funcionando igual). Preenchido = só dispara pra
+  // mensagens/comentários recebidos exatamente por uma dessas contas.
+  accountScope?: AccountScopeEntry[];
 };
+
+/** true se o gatilho vale pra conta/plataforma que recebeu o evento — sem
+ * `accountScope` (ou vazio) vale pra qualquer conta, senão só bate se a
+ * conta estiver na lista. */
+export function matchesAccountScope(
+  trigger: TriggerNodeData,
+  platform: AccountScopeEntry["platform"],
+  accountId: string
+): boolean {
+  const scope = trigger.accountScope;
+  if (!scope || scope.length === 0) return true;
+  return scope.some((s) => s.platform === platform && s.id === accountId);
+}
 
 // Limite da própria Meta pro "button template" do Instagram/Messenger: no
 // máximo 3 botões por mensagem (misturando links e botões de ramificação).

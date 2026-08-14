@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { nodeTypes, paletteItems } from "@/components/automations/nodes";
 import { NodePanel } from "@/components/automations/node-panel";
 import { FlowPreview } from "@/components/automations/flow-preview";
-import type { AutomationFlow, FlowNode, FlowNodeType, SendMessageNodeData } from "@/lib/automation-types";
+import type { AccountScopeEntry, AutomationFlow, FlowNode, FlowNodeType, SendMessageNodeData } from "@/lib/automation-types";
 
 type AutomationRow = {
   id: string;
@@ -29,6 +29,8 @@ type AutomationRow = {
   status: string;
   flow: AutomationFlow;
 };
+
+type ConnectedAccountOption = { platform: AccountScopeEntry["platform"]; id: string; label: string };
 
 function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
   switch (type) {
@@ -54,7 +56,13 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
   }
 }
 
-function EditorInner({ automation }: { automation: AutomationRow }) {
+function EditorInner({
+  automation,
+  connectedAccounts,
+}: {
+  automation: AutomationRow;
+  connectedAccounts: ConnectedAccountOption[];
+}) {
   const [name, setName] = useState(automation.name);
   const [status, setStatus] = useState(automation.status);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(
@@ -279,6 +287,7 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
             onChange={updateSelectedNodeData}
             onDelete={selectedNode.type !== "trigger" ? deleteSelectedNode : undefined}
             onClose={() => setSelectedId(null)}
+            connectedAccounts={connectedAccounts}
           />
         )}
 
@@ -289,10 +298,16 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
   );
 }
 
-export function AutomationEditor({ automation }: { automation: AutomationRow }) {
+export function AutomationEditor({
+  automation,
+  connectedAccounts,
+}: {
+  automation: AutomationRow;
+  connectedAccounts: ConnectedAccountOption[];
+}) {
   return (
     <ReactFlowProvider>
-      <EditorInner automation={automation} />
+      <EditorInner automation={automation} connectedAccounts={connectedAccounts} />
     </ReactFlowProvider>
   );
 }
