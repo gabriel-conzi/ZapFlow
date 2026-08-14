@@ -1,11 +1,12 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clock, GitBranch, MessageSquareText, Send, Tag, Zap } from "lucide-react";
+import { ClipboardList, Clock, GitBranch, MessageSquareText, Send, Tag, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMessageButtons } from "@/lib/automation-types";
 import type {
   AddTagNodeData,
+  CollectDataNodeData,
   ConditionNodeData,
   DelayNodeData,
   SendMessageNodeData,
@@ -218,21 +219,38 @@ export function ConditionNode({ data, selected }: NodeProps & { data: ConditionN
   );
 }
 
+export function CollectDataNode({ data, selected }: NodeProps & { data: CollectDataNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<ClipboardList size={13} />} iconClassName="bg-cyan-600" title="Capturar dado">
+      <p className="line-clamp-3">{data.question || <em>pergunta vazia</em>}</p>
+      <p className="mt-1.5 truncate rounded border border-cyan-400 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700">
+        💾 salva em: {data.fieldName || <em>sem nome</em>}
+      </p>
+      <p className="mt-1.5 text-[10px] italic text-muted-foreground">
+        Pausa aqui até o contato responder
+      </p>
+      <Handle type="source" position={Position.Bottom} className="!bg-cyan-600" />
+    </NodeShell>
+  );
+}
+
 export const nodeTypes = {
   trigger: TriggerNode,
   sendMessage: SendMessageNode,
   delay: DelayNode,
   addTag: AddTagNode,
   condition: ConditionNode,
+  collectData: CollectDataNode,
 };
 
 export const paletteItems: Array<{
-  type: "sendMessage" | "delay" | "addTag" | "condition";
+  type: "sendMessage" | "delay" | "addTag" | "condition" | "collectData";
   label: string;
   icon: React.ReactNode;
   iconClassName: string;
 }> = [
   { type: "sendMessage", label: "Enviar mensagem", icon: <MessageSquareText size={14} />, iconClassName: "bg-primary" },
+  { type: "collectData", label: "Capturar dado", icon: <ClipboardList size={14} />, iconClassName: "bg-cyan-600" },
   { type: "delay", label: "Esperar", icon: <Clock size={14} />, iconClassName: "bg-sky-500" },
   { type: "addTag", label: "Adicionar tag", icon: <Tag size={14} />, iconClassName: "bg-emerald-500" },
   { type: "condition", label: "Condição", icon: <GitBranch size={14} />, iconClassName: "bg-fuchsia-500" },

@@ -384,6 +384,39 @@ export function NodePanel({
             </p>
           </div>
         )}
+
+        {node.type === "collectData" && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-medium">Pergunta</label>
+              <Textarea
+                className="mt-1"
+                value={node.data.question}
+                onChange={(e) => onChange({ question: e.target.value })}
+                placeholder="Qual é o seu nome?"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                A automação manda essa pergunta e pausa esperando o contato responder — a próxima
+                mensagem que ele mandar é salva como resposta (funciona como o nó de botões: fica
+                esperando até a pessoa responder, sem prazo).
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Salvar resposta no campo</label>
+              <Input
+                className="mt-1"
+                value={node.data.fieldName}
+                onChange={(e) => onChange({ fieldName: e.target.value })}
+                placeholder="nome"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Dê um nome curto, sem espaço nem acento (ex: <code>nome</code>, <code>email</code>).
+                Depois é só escrever <code>{"{{nome}}"}</code> dentro do texto de qualquer mensagem
+                seguinte pra aparecer o que a pessoa respondeu.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {node.type !== "trigger" && onDelete && (

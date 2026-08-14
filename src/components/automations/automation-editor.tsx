@@ -39,6 +39,8 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
       return { tagName: "" };
     case "condition":
       return { tagName: "" };
+    case "collectData":
+      return { question: "", fieldName: "" };
     case "trigger":
     default:
       return { triggerType: "keyword", keywords: [] };

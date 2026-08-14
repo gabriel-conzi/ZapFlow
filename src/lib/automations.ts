@@ -29,6 +29,18 @@ import type {
   SendableButton,
 } from "@/lib/automation-types";
 
+/** Troca `{{chave}}` (case-sensitive, só letras/números/underscore no nome do
+ * campo) pelo valor guardado em `contacts.customFields` — vazio se o campo
+ * não existir. Usado antes de mandar qualquer mensagem, pra permitir algo
+ * como "Oi {{nome}}, aqui está..." depois de um nó "Capturar dado". */
+function interpolateFields(text: string, fields: unknown): string {
+  const map = (fields && typeof fields === "object" ? (fields as Record<string, unknown>) : {}) ?? {};
+  return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => {
+    const value = map[key];
+    return value === undefined || value === null ? "" : String(value);
+  });
+}
+
 type RunRow = typeof automationRuns.$inferSelect;
 type Platform = "instagram" | "facebook" | "telegram" | "email";
 
@@ -358,7 +370,33 @@ export async function resumeRunWaitingForButton(params: {
 
   const flow = automation.flow as AutomationFlow;
   const node = findNode(flow, run.nextNodeId);
-  if (!node || node.type !== "sendMessage") return false;
+  if (!node) return false;
+
+  if (node.type === "collectData") {
+    const answer = messageText?.trim();
+    if (!answer) return false; // sem texto (ex: só figurinha/anexo) — continua esperando
+
+    const fieldName = node.data.fieldName?.trim();
+    if (fieldName) {
+      const [contact] = await db
+        .select({ customFields: contacts.customFields })
+        .from(contacts)
+        .where(eq(contacts.id, run.contactId))
+        .limit(1);
+      const current: Record<string, string> =
+        contact?.customFields && typeof contact.customFields === "object" ? contact.customFields : {};
+      await db
+        .update(contacts)
+        .set({ customFields: { ...current, [fieldName]: answer } })
+        .where(eq(contacts.id, run.contactId));
+    }
+
+    const advanced = await persistNext(run, nextNodeId(flow, node.id));
+    await advanceRun(advanced, flow);
+    return true;
+  }
+
+  if (node.type !== "sendMessage") return false;
 
   const replyButtons = getMessageButtons(node.data).filter((b) => b.kind === "reply");
   if (replyButtons.length === 0) return false;
@@ -472,6 +510,26 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
         continue;
       }
 
+      if (node.type === "collectData") {
+        if (!node.data.question?.trim()) {
+          // pergunta vazia: nó mal configurado, não trava a automação por causa disso
+          current = await persistNext(current, nextNodeId(flow, node.id));
+          continue;
+        }
+        await executeSendMessage(current, { text: node.data.question });
+        await db
+          .update(automationRuns)
+          .set({ status: "waiting", resumeAt: null, nextNodeId: node.id, updatedAt: new Date() })
+          .where(eq(automationRuns.id, current.id));
+        await db.insert(automationLogs).values({
+          automationId: current.automationId,
+          contactId: current.contactId,
+          status: "step",
+          detail: `Esperando resposta pra capturar "${node.data.fieldName?.trim() || "campo sem nome"}"`,
+        });
+        return; // pausa aqui — resumeRunWaitingForButton() retoma quando o contato responder
+      }
+
       if (node.type === "condition") {
         const matched = await evaluateCondition(current, node.data);
         current = await persistNext(current, nextNodeId(flow, node.id, matched ? "yes" : "no"));
@@ -552,11 +610,13 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     platform = "instagram";
   }
 
+  const text = interpolateFields(data.text, contact.customFields);
+
   const result = await sendPlatformMessage(platform, {
     accessToken,
     recipientId: contact.igScopedId,
     commentId: run.commentId ?? undefined,
-    text: data.text,
+    text,
     buttons: toSendableButtons(data),
     subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
   });
@@ -565,7 +625,7 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     conversationId: run.conversationId,
     direction: "outbound",
     sender: "automation",
-    text: data.text,
+    text,
     igMessageId: result.message_id ?? null,
     automationId: run.automationId,
   });

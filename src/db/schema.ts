@@ -184,6 +184,10 @@ export const contacts = pgTable("contacts", {
   // true quando o contato mandou um comando de opt-out ("parar" etc.) — nenhuma
   // automação dispara pra ele até que mande um comando de opt-in ("voltar")
   optedOut: boolean("opted_out").notNull().default(false),
+  // valores capturados pelo nó "Capturar dado" da automação (ex: {"nome": "Ana",
+  // "email": "ana@x.com"}) — chave livre definida no editor, usada depois pra
+  // interpolar {{chave}} dentro do texto de mensagens seguintes.
+  customFields: jsonb("custom_fields").$type<Record<string, string>>().notNull().default({}),
 });
 
 export const tags = pgTable("tags", {

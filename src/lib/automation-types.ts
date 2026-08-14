@@ -105,12 +105,23 @@ export type ConditionNodeData = {
   tagName: string;
 };
 
+export type CollectDataNodeData = {
+  label?: string;
+  // pergunta enviada ao contato antes de pausar esperando a resposta
+  question: string;
+  // nome do campo onde a resposta é guardada (ex: "nome", "email") — usado
+  // depois como {{nome}}, {{email}} etc. dentro do texto de mensagens
+  // seguintes (veja `interpolateFields` em lib/automations.ts).
+  fieldName: string;
+};
+
 export type FlowNode =
   | { id: string; type: "trigger"; position: Position; data: TriggerNodeData }
   | { id: string; type: "sendMessage"; position: Position; data: SendMessageNodeData }
   | { id: string; type: "delay"; position: Position; data: DelayNodeData }
   | { id: string; type: "addTag"; position: Position; data: AddTagNodeData }
-  | { id: string; type: "condition"; position: Position; data: ConditionNodeData };
+  | { id: string; type: "condition"; position: Position; data: ConditionNodeData }
+  | { id: string; type: "collectData"; position: Position; data: CollectDataNodeData };
 
 export type FlowNodeType = FlowNode["type"];
 
