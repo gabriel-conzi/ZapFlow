@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, Copy, Loader2, Plus, Trash2, Workflow } from "lucide-react";
 import type { AutomationFlow } from "@/lib/automation-types";
+import { TemplateGallery } from "@/components/automations/template-gallery";
+import type { AutomationTemplate } from "@/lib/automation-templates";
 
 type AutomationRow = {
   id: string;
@@ -37,23 +39,39 @@ function triggerSummary(flow: unknown) {
 export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
   const router = useRouter();
   const [automations, setAutomations] = useState(initial);
-  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  // id do modelo sendo criado agora (ou "blank" pro botão "Começar do
+  // zero") — usado só pra desabilitar os botões da galeria enquanto salva.
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
 
-  async function handleCreate() {
-    setCreating(true);
+  async function createAutomation(body: { name: string; triggerType?: string; flow?: AutomationFlow }) {
+    const res = await fetch("/api/automations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Erro ao criar automação");
+    router.push(`/automations/${data.automation.id}`);
+  }
+
+  async function handleCreateBlank() {
+    setPendingTemplateId("blank");
     try {
-      const res = await fetch("/api/automations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Nova automação" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erro ao criar automação");
-      router.push(`/automations/${data.automation.id}`);
+      await createAutomation({ name: "Nova automação" });
     } catch {
-      setCreating(false);
+      setPendingTemplateId(null);
+    }
+  }
+
+  async function handleCreateFromTemplate(template: AutomationTemplate) {
+    setPendingTemplateId(template.id);
+    try {
+      await createAutomation({ name: template.name, triggerType: template.triggerType, flow: template.flow });
+    } catch {
+      setPendingTemplateId(null);
     }
   }
 
@@ -99,11 +117,19 @@ export function AutomationsList({ initial }: { initial: AutomationRow[] }) {
   return (
     <div>
       <div className="flex justify-end">
-        <Button onClick={handleCreate} disabled={creating}>
-          {creating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+        <Button onClick={() => setGalleryOpen(true)} disabled={pendingTemplateId !== null}>
+          {pendingTemplateId ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
           Nova automação
         </Button>
       </div>
+
+      <TemplateGallery
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onStartBlank={handleCreateBlank}
+        onPickTemplate={handleCreateFromTemplate}
+        pendingId={pendingTemplateId}
+      />
 
       {automations.length === 0 ? (
         <Card className="mt-6">

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { nodeTypes, paletteItems } from "@/components/automations/nodes";
 import { NodePanel } from "@/components/automations/node-panel";
+import { FlowPreview } from "@/components/automations/flow-preview";
 import type { AutomationFlow, FlowNode, FlowNodeType, SendMessageNodeData } from "@/lib/automation-types";
 
 type AutomationRow = {
@@ -76,6 +77,21 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedId) as unknown as FlowNode | undefined,
     [nodes, selectedId]
+  );
+
+  // Mesmo formato salvo no banco (AutomationFlow), recalculado a cada
+  // mudança — é o que a Prévia da conversa usa pra desenhar a simulação.
+  const flowForPreview: AutomationFlow = useMemo(
+    () => ({
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: n.type as FlowNodeType,
+        position: n.position,
+        data: n.data,
+      })) as FlowNode[],
+      edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle })),
+    }),
+    [nodes, edges]
   );
 
   const onConnect = useCallback(
@@ -264,6 +280,8 @@ function EditorInner({ automation }: { automation: AutomationRow }) {
             onClose={() => setSelectedId(null)}
           />
         )}
+
+        <FlowPreview flow={flowForPreview} selectedNodeId={selectedId} automationName={name} />
       </div>
     </div>
   );
