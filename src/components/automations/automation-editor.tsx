@@ -33,6 +33,8 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
   switch (type) {
     case "sendMessage":
       return { text: "", buttons: [] };
+    case "sendImage":
+      return { imageUrl: "", caption: "" };
     case "delay":
       return { amount: 1, unit: "hours" };
     case "addTag":

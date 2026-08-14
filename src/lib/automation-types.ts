@@ -89,6 +89,19 @@ export function toSendableButtons(data: SendMessageNodeData): SendableButton[] {
   });
 }
 
+export type SendImageNodeData = {
+  label?: string;
+  // URL pública de uma imagem (ex: link do Instagram/Facebook, Imgur, Google
+  // Drive compartilhado, etc.) — o ZapFlow não hospeda arquivos, só manda o
+  // link pra Meta/Telegram/e-mail buscarem a imagem direto na hora de enviar.
+  imageUrl: string;
+  // texto opcional que acompanha a imagem. No Telegram e no e-mail vai
+  // junto na mesma mensagem; no Instagram/Facebook a Meta não permite
+  // legenda dentro do anexo de imagem, então vai como uma 2ª mensagem
+  // (texto) logo em seguida.
+  caption?: string;
+};
+
 export type DelayNodeData = {
   label?: string;
   amount: number;
@@ -147,6 +160,7 @@ export type CollectDataNodeData = {
 export type FlowNode =
   | { id: string; type: "trigger"; position: Position; data: TriggerNodeData }
   | { id: string; type: "sendMessage"; position: Position; data: SendMessageNodeData }
+  | { id: string; type: "sendImage"; position: Position; data: SendImageNodeData }
   | { id: string; type: "delay"; position: Position; data: DelayNodeData }
   | { id: string; type: "addTag"; position: Position; data: AddTagNodeData }
   | { id: string; type: "condition"; position: Position; data: ConditionNodeData }

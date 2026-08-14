@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { MAX_MESSAGE_BUTTONS, getConditionRules, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
-import type { ConditionNodeData, ConditionRule, FlowNode, SendMessageNodeData } from "@/lib/automation-types";
+import type { ConditionNodeData, ConditionRule, FlowNode, SendImageNodeData, SendMessageNodeData } from "@/lib/automation-types";
 
 const selectClass =
   "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
@@ -361,6 +361,70 @@ function ConditionRulesEditor({
   );
 }
 
+function ImageNodeEditor({
+  data,
+  onChange,
+}: {
+  data: SendImageNodeData;
+  onChange: (data: Partial<SendImageNodeData>) => void;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const url = data.imageUrl?.trim();
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <label className="text-xs font-medium">Link da imagem</label>
+        <Input
+          className="mt-1"
+          value={data.imageUrl ?? ""}
+          onChange={(e) => {
+            setImageError(false);
+            onChange({ imageUrl: e.target.value });
+          }}
+          placeholder="https://..."
+        />
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          Cole o link de uma imagem publicada em algum lugar (ex: um post do Instagram/Facebook,
+          Imgur, Google Drive com link público). O ZapFlow não guarda o arquivo, só manda esse
+          link pra Meta/Telegram/e-mail buscarem a imagem na hora de enviar.
+        </p>
+
+        {url && !imageError && (
+          // eslint-disable-next-line @next/next/no-img-element -- URL externa escolhida pelo usuário
+          <img
+            src={url}
+            alt=""
+            className="mt-2 max-h-40 w-full rounded-md border object-cover"
+            onError={() => setImageError(true)}
+            onLoad={() => setImageError(false)}
+          />
+        )}
+        {url && imageError && (
+          <p className="mt-2 text-[11px] text-destructive">
+            Não consegui carregar essa imagem — confira se o link está certo e é público.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="text-xs font-medium">Legenda (opcional)</label>
+        <Textarea
+          className="mt-1"
+          value={data.caption ?? ""}
+          onChange={(e) => onChange({ caption: e.target.value })}
+          placeholder="Escreva um texto pra acompanhar a imagem..."
+        />
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          No Telegram e no e-mail a legenda vai junto com a imagem. No Instagram/Facebook a Meta
+          não permite misturar imagem e texto na mesma mensagem, então a legenda chega como uma
+          2ª mensagem, logo em seguida.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function NodePanel({
   node,
   onChange,
@@ -449,6 +513,8 @@ export function NodePanel({
             <ButtonsEditor data={node.data} onChange={onChange} />
           </div>
         )}
+
+        {node.type === "sendImage" && <ImageNodeEditor data={node.data} onChange={onChange} />}
 
         {node.type === "delay" && (
           <div className="flex flex-col gap-4">

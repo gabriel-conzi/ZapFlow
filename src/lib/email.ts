@@ -97,8 +97,11 @@ export async function sendEmailMessage(params: {
   // botões de ramificação não fazem sentido nesse canal e são ignorados.
   buttons?: SendableButton[];
   inReplyTo?: string;
+  // se vier preenchido, embute essa imagem no corpo do e-mail (acima do
+  // texto, que nesse caso funciona como legenda).
+  imageUrl?: string;
 }) {
-  const { accessToken: from, recipientId: to, text, subject, buttons, inReplyTo } = params;
+  const { accessToken: from, recipientId: to, text, subject, buttons, inReplyTo, imageUrl } = params;
   if (!to) throw new Error("E-mail sem destinatário");
 
   const domain = from.split("@")[1];
@@ -110,7 +113,10 @@ export async function sendEmailMessage(params: {
         linkButton.title
       )}</a></p>`
     : "";
-  const html = `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111827">${escapeHtml(
+  const imageHtml = imageUrl
+    ? `<p><img src="${imageUrl}" alt="" style="max-width:100%;border-radius:8px;display:block" /></p>`
+    : "";
+  const html = `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#111827">${imageHtml}${escapeHtml(
     text
   )}${buttonHtml}</div>`;
 

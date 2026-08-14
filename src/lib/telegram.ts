@@ -79,9 +79,26 @@ export async function sendTelegramMessage(params: {
   // automação ainda não trata a resposta desse tipo de botão pra esse canal,
   // só pra Instagram/Facebook. Botões de ramificação são ignorados no Telegram.
   buttons?: SendableButton[];
+  // se vier preenchido, manda a imagem desse link (com `text` como legenda,
+  // se tiver) via sendPhoto em vez de sendMessage — o Telegram permite
+  // imagem + legenda na mesma mensagem, diferente do Instagram/Facebook.
+  imageUrl?: string;
 }) {
-  const { accessToken, recipientId, text, buttons } = params;
+  const { accessToken, recipientId, text, buttons, imageUrl } = params;
   if (!recipientId) throw new Error("Telegram: chat_id não informado");
+
+  if (imageUrl) {
+    const body: Record<string, unknown> = { chat_id: recipientId, photo: imageUrl };
+    if (text?.trim()) body.caption = text;
+    const res = await fetch(apiUrl(accessToken, "sendPhoto"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.description ?? "Erro ao enviar imagem no Telegram");
+    return { message_id: String(data.result?.message_id ?? ""), recipient_id: recipientId };
+  }
 
   const linkButtons = (buttons ?? []).filter(
     (b): b is Extract<SendableButton, { type: "web_url" }> => b.type === "web_url"

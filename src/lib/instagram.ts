@@ -145,11 +145,17 @@ export async function sendInstagramMessage(params: {
   // se vier preenchido, manda como "button template" (texto + até 3 botões
   // de verdade, misturando link e ramificação) em vez de só texto
   buttons?: SendableButton[];
+  // se vier preenchido, manda a imagem desse link como anexo — nesse caso
+  // `text`/`buttons` são ignorados (a Graph API não permite misturar anexo
+  // de imagem com texto/botões na mesma mensagem).
+  imageUrl?: string;
 }) {
-  const { accessToken, recipientId, commentId, text, buttons } = params;
+  const { accessToken, recipientId, commentId, text, buttons, imageUrl } = params;
   const recipient = commentId ? { comment_id: commentId } : { id: recipientId };
 
-  const message = buttons?.length
+  const message = imageUrl
+    ? { attachment: { type: "image", payload: { url: imageUrl, is_reusable: true } } }
+    : buttons?.length
     ? {
         attachment: {
           type: "template",

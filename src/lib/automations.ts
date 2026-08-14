@@ -27,6 +27,7 @@ import type {
   ConditionNodeData,
   ConditionRule,
   SendMessageNodeData,
+  SendImageNodeData,
   SendableButton,
 } from "@/lib/automation-types";
 
@@ -55,6 +56,7 @@ export function sendPlatformMessage(
     text: string;
     subject?: string;
     buttons?: SendableButton[];
+    imageUrl?: string;
   }
 ) {
   if (platform === "facebook") return sendFacebookMessage(params);
@@ -505,6 +507,17 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
         continue;
       }
 
+      if (node.type === "sendImage") {
+        await executeSendImage(current, node.data);
+        if (current.commentId) {
+          // mesma regra do nó "Enviar mensagem": o comment_id só vale pra 1 envio
+          await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
+          current = { ...current, commentId: null };
+        }
+        current = await persistNext(current, nextNodeId(flow, node.id));
+        continue;
+      }
+
       if (node.type === "addTag") {
         await executeAddTag(current, node.data);
         current = await persistNext(current, nextNodeId(flow, node.id));
@@ -577,22 +590,20 @@ function computeResumeAt(data: DelayNodeData): Date {
   return new Date(Date.now() + amount * msPerUnit[data.unit]);
 }
 
-async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
-  if (!run.conversationId) throw new Error("Execução sem conversa associada");
-  if (!data.text?.trim()) return; // nó de mensagem vazio: não faz nada, mas não quebra o fluxo
-
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
-  if (!contact) throw new Error("Contato não encontrado");
-
-  let accessToken: string;
-  let platform: Platform;
+/** Descobre a conta/token certos pra mandar mensagem pro contato, de acordo
+ * com a plataforma dele. Compartilhado por qualquer nó que precise enviar
+ * algo (mensagem, imagem, etc). */
+async function resolveContactChannel(contact: typeof contacts.$inferSelect): Promise<{
+  accessToken: string;
+  platform: Platform;
+}> {
   if (contact.platform === "facebook") {
     if (!contact.facebookPageId) throw new Error("Contato sem Página do Facebook vinculada");
     const [page] = await db.select().from(facebookPages).where(eq(facebookPages.id, contact.facebookPageId)).limit(1);
     if (!page) throw new Error("Página do Facebook não encontrada");
-    accessToken = page.accessToken;
-    platform = "facebook";
-  } else if (contact.platform === "telegram") {
+    return { accessToken: page.accessToken, platform: "facebook" };
+  }
+  if (contact.platform === "telegram") {
     if (!contact.telegramAccountId) throw new Error("Contato sem bot do Telegram vinculado");
     const [account] = await db
       .select()
@@ -600,25 +611,32 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
       .where(eq(telegramAccounts.id, contact.telegramAccountId))
       .limit(1);
     if (!account) throw new Error("Bot do Telegram não encontrado");
-    accessToken = account.botToken;
-    platform = "telegram";
-  } else if (contact.platform === "email") {
+    return { accessToken: account.botToken, platform: "telegram" };
+  }
+  if (contact.platform === "email") {
     if (!contact.emailAccountId) throw new Error("Contato sem conta de e-mail vinculada");
     const [account] = await db.select().from(emailAccounts).where(eq(emailAccounts.id, contact.emailAccountId)).limit(1);
     if (!account) throw new Error("Conta de e-mail não encontrada");
-    accessToken = account.fromAddress;
-    platform = "email";
-  } else {
-    if (!contact.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
-    const [account] = await db
-      .select()
-      .from(instagramAccounts)
-      .where(eq(instagramAccounts.id, contact.instagramAccountId))
-      .limit(1);
-    if (!account) throw new Error("Conta do Instagram não encontrada");
-    accessToken = account.accessToken;
-    platform = "instagram";
+    return { accessToken: account.fromAddress, platform: "email" };
   }
+  if (!contact.instagramAccountId) throw new Error("Contato sem conta do Instagram vinculada");
+  const [account] = await db
+    .select()
+    .from(instagramAccounts)
+    .where(eq(instagramAccounts.id, contact.instagramAccountId))
+    .limit(1);
+  if (!account) throw new Error("Conta do Instagram não encontrada");
+  return { accessToken: account.accessToken, platform: "instagram" };
+}
+
+async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
+  if (!run.conversationId) throw new Error("Execução sem conversa associada");
+  if (!data.text?.trim()) return; // nó de mensagem vazio: não faz nada, mas não quebra o fluxo
+
+  const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
+  if (!contact) throw new Error("Contato não encontrado");
+
+  const { accessToken, platform } = await resolveContactChannel(contact);
 
   const text = interpolateFields(data.text, contact.customFields);
 
@@ -639,6 +657,67 @@ async function executeSendMessage(run: RunRow, data: SendMessageNodeData) {
     igMessageId: result.message_id ?? null,
     automationId: run.automationId,
   });
+
+  await db
+    .update(conversations)
+    .set({ updatedAt: new Date(), status: "open" })
+    .where(eq(conversations.id, run.conversationId));
+}
+
+/** Manda um nó "Enviar imagem". No Telegram e no e-mail, imagem + legenda
+ * vão juntas numa mensagem só. No Instagram/Facebook a Meta não permite
+ * misturar anexo de imagem com texto na mesma mensagem — nesses canais a
+ * legenda (se tiver) vira uma 2ª mensagem de texto, mandada logo em
+ * seguida, já usando `recipientId` (o `comment_id`, se veio de um
+ * comentário, só vale pra 1 envio — a imagem consome ele). */
+async function executeSendImage(run: RunRow, data: SendImageNodeData) {
+  if (!run.conversationId) throw new Error("Execução sem conversa associada");
+  const imageUrl = data.imageUrl?.trim();
+  if (!imageUrl) return; // nó mal configurado: não faz nada, mas não quebra o fluxo
+
+  const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
+  if (!contact) throw new Error("Contato não encontrado");
+
+  const { accessToken, platform } = await resolveContactChannel(contact);
+  const caption = data.caption?.trim() ? interpolateFields(data.caption, contact.customFields) : undefined;
+  const captionInSameMessage = platform === "telegram" || platform === "email";
+
+  const result = await sendPlatformMessage(platform, {
+    accessToken,
+    recipientId: contact.igScopedId,
+    commentId: run.commentId ?? undefined,
+    text: captionInSameMessage ? caption ?? "" : "",
+    imageUrl,
+    subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
+  });
+
+  await db.insert(messages).values({
+    conversationId: run.conversationId,
+    direction: "outbound",
+    sender: "automation",
+    text: captionInSameMessage && caption ? caption : "[imagem]",
+    igMessageId: result.message_id ?? null,
+    automationId: run.automationId,
+  });
+
+  if (!captionInSameMessage && caption) {
+    // só chega aqui pra Instagram/Facebook (telegram/email já mandam a
+    // legenda junto, ver `captionInSameMessage`) — nenhum dos dois usa
+    // `subject` (isso é só pro canal de e-mail).
+    const followUp = await sendPlatformMessage(platform, {
+      accessToken,
+      recipientId: contact.igScopedId,
+      text: caption,
+    });
+    await db.insert(messages).values({
+      conversationId: run.conversationId,
+      direction: "outbound",
+      sender: "automation",
+      text: caption,
+      igMessageId: followUp.message_id ?? null,
+      automationId: run.automationId,
+    });
+  }
 
   await db
     .update(conversations)

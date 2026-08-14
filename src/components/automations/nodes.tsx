@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ClipboardList, Clock, GitBranch, MessageSquareText, Send, Tag, Zap } from "lucide-react";
+import { ClipboardList, Clock, GitBranch, Image as ImageIcon, MessageSquareText, Send, Tag, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getConditionRules, getMessageButtons } from "@/lib/automation-types";
 import type {
@@ -9,6 +9,7 @@ import type {
   CollectDataNodeData,
   ConditionNodeData,
   DelayNodeData,
+  SendImageNodeData,
   SendMessageNodeData,
   TriggerNodeData,
 } from "@/lib/automation-types";
@@ -177,6 +178,28 @@ export function SendMessageNode({ data, selected }: NodeProps & { data: SendMess
   );
 }
 
+export function SendImageNode({ data, selected }: NodeProps & { data: SendImageNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<ImageIcon size={13} />} iconClassName="bg-rose-500" title="Enviar imagem">
+      {data.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- URL externa escolhida pelo usuário
+        <img
+          src={data.imageUrl}
+          alt=""
+          className="mb-1.5 h-20 w-full rounded object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      ) : (
+        <p className="italic">nenhuma imagem definida</p>
+      )}
+      {data.caption && <p className="line-clamp-2">{data.caption}</p>}
+      <Handle type="source" position={Position.Bottom} className="!bg-rose-500" />
+    </NodeShell>
+  );
+}
+
 export function DelayNode({ data, selected }: NodeProps & { data: DelayNodeData }) {
   const unitLabel =
     { seconds: "segundo(s)", minutes: "minuto(s)", hours: "hora(s)", days: "dia(s)" }[data.unit] ?? data.unit;
@@ -256,6 +279,7 @@ export function CollectDataNode({ data, selected }: NodeProps & { data: CollectD
 export const nodeTypes = {
   trigger: TriggerNode,
   sendMessage: SendMessageNode,
+  sendImage: SendImageNode,
   delay: DelayNode,
   addTag: AddTagNode,
   condition: ConditionNode,
@@ -263,12 +287,13 @@ export const nodeTypes = {
 };
 
 export const paletteItems: Array<{
-  type: "sendMessage" | "delay" | "addTag" | "condition" | "collectData";
+  type: "sendMessage" | "sendImage" | "delay" | "addTag" | "condition" | "collectData";
   label: string;
   icon: React.ReactNode;
   iconClassName: string;
 }> = [
   { type: "sendMessage", label: "Enviar mensagem", icon: <MessageSquareText size={14} />, iconClassName: "bg-primary" },
+  { type: "sendImage", label: "Enviar imagem", icon: <ImageIcon size={14} />, iconClassName: "bg-rose-500" },
   { type: "collectData", label: "Capturar dado", icon: <ClipboardList size={14} />, iconClassName: "bg-cyan-600" },
   { type: "delay", label: "Esperar", icon: <Clock size={14} />, iconClassName: "bg-sky-500" },
   { type: "addTag", label: "Adicionar tag", icon: <Tag size={14} />, iconClassName: "bg-emerald-500" },
