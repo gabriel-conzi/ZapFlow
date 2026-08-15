@@ -15,6 +15,20 @@ export async function fetchFacebookPageByPageId(pageId: string) {
 }
 
 /**
+ * Mesma ideia de `isOwnConnectedInstagramSender` (em `src/lib/instagram.ts`),
+ * mas pras Páginas do Facebook conectadas no workspace — evita loop quando
+ * uma Página manda Mensenger pra outra Página do mesmo Gabriel.
+ */
+export async function isOwnConnectedFacebookSender(workspaceId: string, senderId: string): Promise<boolean> {
+  const [match] = await db
+    .select({ id: facebookPages.id })
+    .from(facebookPages)
+    .where(and(eq(facebookPages.workspaceId, workspaceId), eq(facebookPages.pageId, senderId)))
+    .limit(1);
+  return Boolean(match);
+}
+
+/**
  * Busca nome/foto da pessoa direto na Graph API do Facebook (via o ID dela
  * escopado pra Página — PSID). Se der erro (token vencido, sem permissão
  * etc.), retorna null e o contato é criado só com o ID mesmo.

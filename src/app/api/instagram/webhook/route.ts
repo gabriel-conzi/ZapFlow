@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { fetchInstagramAccountByIgUserId, getOrCreateContact, getOrCreateConversation } from "@/lib/instagram";
+import {
+  fetchInstagramAccountByIgUserId,
+  getOrCreateContact,
+  getOrCreateConversation,
+  isOwnConnectedInstagramSender,
+} from "@/lib/instagram";
 import {
   handleOptControlKeyword,
   maybeReplyWithAi,
@@ -102,6 +107,18 @@ async function processMessagingEntry(entry: IgEntry) {
     // enviar, então ignoramos aqui pra não duplicar.
     if (msg?.is_echo) continue;
     if (!msg && !postback) continue;
+
+    // remetente é OUTRA conta do Instagram já conectada nesse workspace (ex:
+    // @usepostflow mandando Direct pra @fuxica_aqui) — ignora completamente,
+    // não cria contato nem dispara automação/IA. Sem isso, as duas contas
+    // ficam respondendo uma pra outra infinitamente. Ver
+    // isOwnConnectedInstagramSender() em src/lib/instagram.ts.
+    if (await isOwnConnectedInstagramSender(account.workspaceId, event.sender.id)) {
+      console.warn(
+        `[instagram/webhook] mensagem de ${event.sender.id} ignorada — é outra conta própria conectada, não um contato real`
+      );
+      continue;
+    }
 
     const contact = await getOrCreateContact({
       workspaceId: account.workspaceId,

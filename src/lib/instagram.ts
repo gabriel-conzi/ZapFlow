@@ -19,6 +19,28 @@ export async function fetchInstagramAccountByIgUserId(igUserId: string) {
 }
 
 /**
+ * Verifica se um ID de remetente de um evento de Direct é, na verdade, uma
+ * das OUTRAS contas do Instagram já conectadas nesse mesmo workspace (ex:
+ * Gabriel tem @usepostflow e @fuxica_aqui conectadas — se uma manda Direct
+ * pra outra, a Meta entrega um evento de mensagem normal, indistinguível de
+ * uma pessoa real).
+ *
+ * Sem esse filtro, cada conta responde à outra automaticamente (automação de
+ * boas-vindas ou a IA) e isso gera uma nova mensagem que a OUTRA conta também
+ * responde — loop infinito entre as duas contas do próprio Gabriel, gastando
+ * chamadas de IA (tokens) sem nenhum contato real envolvido. Ver
+ * `claude/DIAGNOSTICO_loop_contas_proprias_2026-08-15.md`.
+ */
+export async function isOwnConnectedInstagramSender(workspaceId: string, senderId: string): Promise<boolean> {
+  const [match] = await db
+    .select({ id: instagramAccounts.id })
+    .from(instagramAccounts)
+    .where(and(eq(instagramAccounts.workspaceId, workspaceId), eq(instagramAccounts.igUserId, senderId)))
+    .limit(1);
+  return Boolean(match);
+}
+
+/**
  * Busca nome/username/foto do contato direto na Graph API do Instagram.
  * Se der erro (token vencido, permissão etc.), retorna null e o contato é
  * criado só com o ID mesmo — não trava o fluxo.

@@ -13,7 +13,7 @@ import {
   messages,
   tags,
 } from "@/db/schema";
-import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { sendInstagramMessage } from "@/lib/instagram";
 import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -46,6 +46,36 @@ function interpolateFields(text: string, fields: unknown): string {
 
 type RunRow = typeof automationRuns.$inferSelect;
 type Platform = "instagram" | "facebook" | "telegram" | "email";
+
+// ── Proteção contra loop de respostas automáticas ──────────────────────────
+// Se algo ficar respondendo sozinho repetidamente numa mesma conversa (ex:
+// duas contas conectadas do próprio Gabriel conversando entre si, ou
+// qualquer outra causa futura de loop), isso queima tokens de IA e pode virar
+// centenas/milhares de mensagens em poucos minutos. Como segunda camada de
+// proteção (além de nunca tratar as próprias contas conectadas como
+// contato — ver isOwnConnectedInstagramSender/isOwnConnectedFacebookSender),
+// contamos quantas respostas automáticas já saíram nessa conversa numa
+// janela recente e paramos de responder sozinho quando passa do limite —
+// as mensagens do contato continuam sendo salvas normalmente na Inbox, só a
+// resposta automática é que fica em pausa até um humano responder.
+const AUTOMATED_REPLY_WINDOW_MINUTES = 10;
+const MAX_AI_REPLIES_IN_WINDOW = 5; // a IA custa tokens de verdade — limite mais apertado
+const MAX_AUTOMATION_REPLIES_IN_WINDOW = 20; // automação manda texto fixo, mas ainda assim tem limite
+
+async function countRecentOutboundMessages(
+  conversationId: string,
+  senders: Array<"ai" | "automation">,
+  windowMinutes: number
+): Promise<number> {
+  const since = new Date(Date.now() - windowMinutes * 60_000);
+  const rows = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.conversationId, conversationId), inArray(messages.sender, senders), gte(messages.createdAt, since)))
+    // não precisa do total exato — só saber se já bateu o limite
+    .limit(Math.max(MAX_AI_REPLIES_IN_WINDOW, MAX_AUTOMATION_REPLIES_IN_WINDOW) + 1);
+  return rows.length;
+}
 
 /** Escolhe a função de envio certa pra plataforma do contato. */
 export function sendPlatformMessage(
@@ -220,6 +250,18 @@ export async function triggerAutomationsForMessage(params: {
     .limit(1);
   if (contact?.optedOut) return false;
 
+  const recentAutomationReplies = await countRecentOutboundMessages(
+    conversationId,
+    ["automation", "ai"],
+    AUTOMATED_REPLY_WINDOW_MINUTES
+  );
+  if (recentAutomationReplies >= MAX_AUTOMATION_REPLIES_IN_WINDOW) {
+    console.warn(
+      `[automations] disparo em pausa na conversa ${conversationId} — ${recentAutomationReplies} respostas automáticas nos últimos ${AUTOMATED_REPLY_WINDOW_MINUTES} min (possível loop). Esperando um humano responder.`
+    );
+    return false;
+  }
+
   const active = await db
     .select()
     .from(automations)
@@ -260,6 +302,14 @@ export async function maybeReplyWithAi(params: {
     .where(eq(contacts.id, params.contactId))
     .limit(1);
   if (contact?.optedOut) return;
+
+  const recentAiReplies = await countRecentOutboundMessages(params.conversationId, ["ai"], AUTOMATED_REPLY_WINDOW_MINUTES);
+  if (recentAiReplies >= MAX_AI_REPLIES_IN_WINDOW) {
+    console.warn(
+      `[automations] IA em pausa na conversa ${params.conversationId} — ${recentAiReplies} respostas da IA nos últimos ${AUTOMATED_REPLY_WINDOW_MINUTES} min (possível loop). Não chamando a OpenAI de novo até um humano responder.`
+    );
+    return;
+  }
 
   const reply = await generateAiReply({ workspaceId: params.workspaceId, conversationId: params.conversationId });
   if (!reply) return;
@@ -309,6 +359,18 @@ export async function triggerAutomationsForComment(params: {
     .where(eq(contacts.id, contactId))
     .limit(1);
   if (contact?.optedOut) return;
+
+  const recentAutomationReplies = await countRecentOutboundMessages(
+    conversationId,
+    ["automation", "ai"],
+    AUTOMATED_REPLY_WINDOW_MINUTES
+  );
+  if (recentAutomationReplies >= MAX_AUTOMATION_REPLIES_IN_WINDOW) {
+    console.warn(
+      `[automations] disparo em pausa na conversa ${conversationId} — ${recentAutomationReplies} respostas automáticas nos últimos ${AUTOMATED_REPLY_WINDOW_MINUTES} min (possível loop). Esperando um humano responder.`
+    );
+    return;
+  }
 
   const active = await db
     .select()

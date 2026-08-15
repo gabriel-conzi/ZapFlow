@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts, conversations, messages } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { fetchFacebookPageByPageId, getOrCreateFacebookContact } from "@/lib/facebook";
+import { fetchFacebookPageByPageId, getOrCreateFacebookContact, isOwnConnectedFacebookSender } from "@/lib/facebook";
 import { getOrCreateConversation } from "@/lib/instagram";
 import {
   handleOptControlKeyword,
@@ -101,6 +101,16 @@ async function processMessagingEntry(entry: FbEntry) {
     // enviamos — já salva na hora de enviar, ignora aqui pra não duplicar.
     if (msg?.is_echo) continue;
     if (!msg && !postback) continue;
+
+    // remetente é OUTRA Página do Facebook já conectada nesse workspace —
+    // ignora completamente, mesma lógica (e mesmo motivo) do webhook do
+    // Instagram. Ver isOwnConnectedFacebookSender() em src/lib/facebook.ts.
+    if (await isOwnConnectedFacebookSender(page.workspaceId, event.sender.id)) {
+      console.warn(
+        `[facebook/webhook] mensagem de ${event.sender.id} ignorada — é outra Página própria conectada, não um contato real`
+      );
+      continue;
+    }
 
     const contact = await getOrCreateFacebookContact({
       workspaceId: page.workspaceId,
