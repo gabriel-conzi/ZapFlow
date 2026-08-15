@@ -146,6 +146,8 @@ export function matchesTrigger(flow: AutomationFlow, event: TriggerEvent): boole
   // se essa automação está vinculada a um post específico, só bate se o
   // comentário foi feito exatamente nesse post/reels
   if (trigger.data.mediaId && trigger.data.mediaId !== event.mediaId) return false;
+  // "responder a qualquer comentário" ligado: não exige nenhuma palavra-chave
+  if (trigger.data.matchAnyComment) return true;
   const keywords = trigger.data.keywords ?? [];
   if (keywords.length === 0) return false;
   const text = (event.commentText ?? "").toLowerCase();

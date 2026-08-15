@@ -643,7 +643,18 @@ export function NodePanel({
                 <option value="welcome">Primeira mensagem (boas-vindas)</option>
               </select>
             </div>
-            {(node.data.triggerType === "keyword" || node.data.triggerType === "comment") && (
+            {node.data.triggerType === "comment" && (
+              <label className="flex items-center gap-2 rounded-md border p-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={Boolean(node.data.matchAnyComment)}
+                  onChange={(e) => onChange({ matchAnyComment: e.target.checked })}
+                />
+                Responder a qualquer comentário (sem exigir palavra-chave)
+              </label>
+            )}
+            {(node.data.triggerType === "keyword" ||
+              (node.data.triggerType === "comment" && !node.data.matchAnyComment)) && (
               <div>
                 <label className="text-xs font-medium">Palavras-chave (separe por vírgula)</label>
                 <Textarea

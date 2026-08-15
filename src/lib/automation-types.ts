@@ -15,8 +15,16 @@ export type TriggerNodeData = {
   triggerType: "keyword" | "welcome" | "comment";
   // usado quando triggerType é "keyword" (mensagem de Direct) ou "comment"
   // (comentário em post/reels) — dispara se o texto contiver qualquer uma
-  // dessas palavras (sem diferenciar maiúscula/minúscula)
+  // dessas palavras (sem diferenciar maiúscula/minúscula). Ignorado quando
+  // `matchAnyComment` está marcado.
   keywords?: string[];
+  // usado só quando triggerType === "comment" — quando true, a automação
+  // dispara pra QUALQUER comentário (não precisa bater nenhuma palavra-chave).
+  // Sem isso, um gatilho de comentário sem nenhuma palavra-chave configurada
+  // nunca disparava (a lista de palavras-chave vazia sempre resultava em "não
+  // bate com nada") — o que confundia quem queria responder todo mundo que
+  // comentasse, sem escrever nenhuma palavra específica.
+  matchAnyComment?: boolean;
   // usado só quando triggerType === "comment" — se preenchido, essa
   // automação só dispara pra comentários NESSE post/reels específico (evita
   // conflito entre automações diferentes que usam a mesma palavra-chave em
