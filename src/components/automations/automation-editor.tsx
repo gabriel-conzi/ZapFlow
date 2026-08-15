@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ReactFlow,
@@ -10,6 +10,7 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type Connection,
   type Edge,
   type Node,
@@ -81,6 +82,8 @@ function EditorInner({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedId) as unknown as FlowNode | undefined,
@@ -117,10 +120,27 @@ function EditorInner({
 
   function addNode(type: Exclude<FlowNodeType, "trigger">) {
     const id = crypto.randomUUID();
+
+    // Posiciona o nó novo no MEIO da área do canvas que o usuário está vendo
+    // agora (considerando o quanto ele já arrastou/deu zoom) — antes, a
+    // posição era calculada só a partir de quantos nós já existiam, sem
+    // nenhuma relação com o que estava visível na tela. Conforme o fluxo
+    // crescia (ou o usuário dava zoom/arrastava pra trabalhar numa parte
+    // específica), o nó novo surgia fora da área visível e ele precisava
+    // dar zoom out pra achar e arrastar de volta.
+    const rect = canvasWrapperRef.current?.getBoundingClientRect();
+    const screenCenter = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const center = screenToFlowPosition(screenCenter);
+    // pequeno deslocamento em cascata pra não empilhar vários nós novos
+    // exatamente um em cima do outro se o usuário clicar várias vezes seguidas
+    const cascade = (nodes.length % 6) * 24;
+
     const newNode: Node = {
       id,
       type,
-      position: { x: 340 + ((nodes.length * 37) % 120), y: 80 + nodes.length * 50 },
+      position: { x: center.x - 90 + cascade, y: center.y - 40 + cascade },
       data: defaultDataFor(type),
     };
     setNodes((nds) => [...nds, newNode]);
@@ -262,7 +282,7 @@ function EditorInner({
           </p>
         </div>
 
-        <div className="relative flex-1">
+        <div className="relative flex-1" ref={canvasWrapperRef}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
