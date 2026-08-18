@@ -206,6 +206,28 @@ export const contactTags = pgTable(
   (t) => ({ pk: primaryKey({ columns: [t.contactId, t.tagId] }) })
 );
 
+// Definição manual de campos customizados por workspace (ex: "Cidade", "Plano
+// contratado") — separado de `contacts.customFields`, que é onde o VALOR de
+// cada contato fica guardado. Ter essa lista permite mostrar uma coluna fixa
+// e editável na tela de Contatos, e sugerir esses nomes no nó "Capturar
+// dado" das automações. `key` é a versão usada dentro de customFields e em
+// `{{chave}}` nas mensagens (minúscula, sem espaço/acento); `label` é o nome
+// que aparece pro Gabriel na tela.
+export const contactFieldDefinitions = pgTable(
+  "contact_field_definitions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    type: text("type").notNull().default("text"), // text | number | date | boolean
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    workspaceKeyIdx: uniqueIndex("contact_field_definitions_workspace_key_idx").on(t.workspaceId, t.key),
+  })
+);
+
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONVERSAS E MENSAGENS (Direct + ComentÃ¡rios)
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
