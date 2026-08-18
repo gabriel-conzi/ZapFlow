@@ -72,7 +72,7 @@ export function CustomFieldsManager({ fields }: { fields: FieldDefinition[] }) {
           {fields.map((f) => (
             <span
               key={f.id}
-              className="flex items-center gap-1 rounded-full border bg-muted px-2.5 py-1 text-xs"
+              className="flex items-center gap-1.5 rounded-full border bg-muted py-1 pl-2.5 pr-1 text-xs"
               title={`Use {{${f.key}}} nas mensagens das automações`}
             >
               {f.label}
@@ -83,10 +83,11 @@ export function CustomFieldsManager({ fields }: { fields: FieldDefinition[] }) {
                 type="button"
                 onClick={() => deleteField(f.id)}
                 disabled={deletingId === f.id}
-                className="ml-1 rounded-full text-muted-foreground hover:text-destructive"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-foreground/70 hover:bg-destructive/15 hover:text-destructive"
                 aria-label={`Remover campo ${f.label}`}
+                title={`Remover o campo "${f.label}"`}
               >
-                {deletingId === f.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+                {deletingId === f.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
               </button>
             </span>
           ))}
