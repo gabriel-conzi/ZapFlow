@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Music,
   Send,
+  ShoppingCart,
   Tag,
   Video,
   Zap,
@@ -25,6 +26,7 @@ import type {
   SendFileNodeData,
   SendImageNodeData,
   SendMessageNodeData,
+  SendProductNodeData,
   SendVideoNodeData,
   TriggerNodeData,
 } from "@/lib/automation-types";
@@ -245,6 +247,23 @@ export function SendAudioNode({ data, selected }: NodeProps & { data: SendAudioN
   );
 }
 
+export function SendProductNode({ data, selected }: NodeProps & { data: SendProductNodeData }) {
+  return (
+    <NodeShell selected={selected} icon={<ShoppingCart size={13} />} iconClassName="bg-green-600" title="Enviar produto">
+      {data.productLabel ? (
+        <p className="line-clamp-2 font-medium text-foreground">{data.productLabel}</p>
+      ) : (
+        <p className="italic">nenhum produto escolhido</p>
+      )}
+      {data.extraText && <p className="mt-1 line-clamp-2">{data.extraText}</p>}
+      <p className="mt-1.5 truncate rounded border border-green-500 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+        🛒 botão &quot;Comprar&quot; com link rastreável
+      </p>
+      <Handle type="source" position={Position.Bottom} className="!bg-green-600" />
+    </NodeShell>
+  );
+}
+
 export function DelayNode({ data, selected }: NodeProps & { data: DelayNodeData }) {
   const unitLabel =
     { seconds: "segundo(s)", minutes: "minuto(s)", hours: "hora(s)", days: "dia(s)" }[data.unit] ?? data.unit;
@@ -328,6 +347,7 @@ export const nodeTypes = {
   sendVideo: SendVideoNode,
   sendFile: SendFileNode,
   sendAudio: SendAudioNode,
+  sendProduct: SendProductNode,
   delay: DelayNode,
   addTag: AddTagNode,
   condition: ConditionNode,
@@ -341,6 +361,7 @@ export const paletteItems: Array<{
     | "sendVideo"
     | "sendFile"
     | "sendAudio"
+    | "sendProduct"
     | "delay"
     | "addTag"
     | "condition"
@@ -350,6 +371,7 @@ export const paletteItems: Array<{
   iconClassName: string;
 }> = [
   { type: "sendMessage", label: "Enviar mensagem", icon: <MessageSquareText size={14} />, iconClassName: "bg-primary" },
+  { type: "sendProduct", label: "Enviar produto", icon: <ShoppingCart size={14} />, iconClassName: "bg-green-600" },
   { type: "sendImage", label: "Enviar imagem", icon: <ImageIcon size={14} />, iconClassName: "bg-rose-500" },
   { type: "sendVideo", label: "Enviar vídeo", icon: <Video size={14} />, iconClassName: "bg-violet-500" },
   { type: "sendAudio", label: "Enviar áudio", icon: <Music size={14} />, iconClassName: "bg-orange-500" },

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, ChevronLeft, Loader2, MessageCircle, Plus, Trash2, X } from "lucide-react";
+import { Camera, ChevronLeft, ExternalLink, Loader2, MessageCircle, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { MAX_MESSAGE_BUTTONS, getConditionRules, getMessageButtons, type MessageButtonData } from "@/lib/automation-types";
+import { MARKETPLACE_LABELS, type Marketplace } from "@/lib/marketplaces";
 import type {
   AccountScopeEntry,
   ConditionNodeData,
@@ -601,6 +603,126 @@ function MediaNodeEditor({
   );
 }
 
+type ProductItem = {
+  id: string;
+  name: string;
+  price: string | null;
+  imageUrl: string | null;
+  marketplace: string;
+  active: boolean;
+};
+
+/** Lista de produtos pra escolher — só existe montada enquanto nenhum
+ * produto foi escolhido ainda (ver ProductPicker abaixo), busca 1x ao
+ * montar. `loading` já nasce `true` (em vez de chamar `setLoading(true)`
+ * dentro do efeito) pra não disparar um set de estado síncrono logo na
+ * primeira execução do efeito. */
+function ProductPickerList({ onSelect }: { onSelect: (productId: string, productLabel: string) => void }) {
+  const [items, setItems] = useState<ProductItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setItems(data.products ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Erro ao buscar produtos");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <>
+      {loading && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" /> Buscando produtos...
+        </p>
+      )}
+      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {items && items.length === 0 && !loading && (
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          Você ainda não cadastrou nenhum produto.{" "}
+          <Link href="/products" target="_blank" className="inline-flex items-center gap-1 text-primary underline">
+            Cadastrar em Produtos <ExternalLink size={10} />
+          </Link>
+        </p>
+      )}
+      {items && items.length > 0 && (
+        <div className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+          {items.map((p) => {
+            const label = `${p.name}${p.price ? ` — ${p.price}` : ""}`;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onSelect(p.id, label)}
+                disabled={!p.active}
+                className="flex items-center gap-2 rounded-md border p-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {p.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- URL externa escolhida pelo usuário
+                  <img src={p.imageUrl} alt="" className="size-9 shrink-0 rounded object-cover" />
+                ) : (
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded bg-muted">
+                    <ShoppingCart size={14} className="text-muted-foreground" />
+                  </span>
+                )}
+                <span className="flex-1 text-[11px]">
+                  <span className="line-clamp-1 font-medium">{p.name}</span>
+                  <span className="text-muted-foreground">
+                    {MARKETPLACE_LABELS[p.marketplace as Marketplace] ?? p.marketplace}
+                    {p.price ? ` · ${p.price}` : ""}
+                    {!p.active ? " · pausado" : ""}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Escolhe um produto cadastrado em /products pro nó "Enviar produto" —
+ * salva só `productId` + um resumo (`productLabel`) pra mostrar no nó sem
+ * precisar buscar de novo (mesmo padrão de `TriggerNodeData.mediaLabel`). */
+function ProductPicker({
+  productId,
+  productLabel,
+  onSelect,
+}: {
+  productId?: string;
+  productLabel?: string;
+  onSelect: (productId?: string, productLabel?: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium">Produto</label>
+
+      {productId ? (
+        <div className="mt-1 flex items-center justify-between gap-2 rounded-md border p-2">
+          <span className="truncate text-xs">{productLabel || productId}</span>
+          <Button variant="ghost" size="sm" onClick={() => onSelect(undefined, undefined)}>
+            Trocar
+          </Button>
+        </div>
+      ) : (
+        <ProductPickerList onSelect={onSelect} />
+      )}
+    </div>
+  );
+}
+
 export function NodePanel({
   node,
   onChange,
@@ -716,6 +838,32 @@ export function NodePanel({
         {node.type === "sendAudio" && <MediaNodeEditor kind="audio" data={node.data} onChange={onChange} />}
 
         {node.type === "sendFile" && <MediaNodeEditor kind="file" data={node.data} onChange={onChange} />}
+
+        {node.type === "sendProduct" && (
+          <div className="flex flex-col gap-4">
+            <ProductPicker
+              productId={node.data.productId}
+              productLabel={node.data.productLabel}
+              onSelect={(productId, productLabel) => onChange({ productId, productLabel })}
+            />
+            <div>
+              <label className="text-xs font-medium">Texto extra (opcional)</label>
+              <Textarea
+                className="mt-1"
+                value={node.data.extraText ?? ""}
+                onChange={(e) => onChange({ extraText: e.target.value })}
+                placeholder="Ex: Corre que só tem 3 unidades! Use {{nome}} pra personalizar."
+              />
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Manda a imagem do produto (se tiver) e depois nome + preço + esse texto, com um botão
+              &quot;🛒 Comprar&quot; que leva pro link rastreável do produto — cada clique conta na
+              página <Link href="/sales" target="_blank" className="text-primary underline">Vendas</Link>.
+              Preço e link vêm sempre atualizados de /products, mesmo que você edite o produto depois
+              de montar esse fluxo.
+            </p>
+          </div>
+        )}
 
         {node.type === "delay" && (
           <div className="flex flex-col gap-4">

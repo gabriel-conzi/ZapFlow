@@ -43,6 +43,8 @@ function defaultDataFor(type: FlowNodeType): Record<string, unknown> {
     case "sendFile":
     case "sendAudio":
       return { mediaUrl: "", caption: "" };
+    case "sendProduct":
+      return { productId: undefined, productLabel: undefined, extraText: "" };
     case "delay":
       return { amount: 1, unit: "hours" };
     case "addTag":

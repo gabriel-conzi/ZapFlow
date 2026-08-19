@@ -21,6 +21,7 @@ const NODE_TYPE_LABELS: Record<FlowNodeType, string> = {
   sendVideo: "Enviar vídeo",
   sendFile: "Enviar arquivo",
   sendAudio: "Enviar áudio",
+  sendProduct: "Enviar produto",
   collectData: "Capturar dado",
   delay: "Esperar",
   addTag: "Adicionar tag",

@@ -307,6 +307,46 @@ export const automationRuns = pgTable("automation_runs", {
 // CONFIGURAÃ‡ÃƒO DE IA (prompts por workspace)
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// Produtos cadastrados (afiliado de marketplace ou link próprio) — Fase A do
+// dashboard de vendas. `slug` é a parte curta do link rastreável que o
+// ZapFlow gera (/r/slug), único em todo o banco (não só por workspace)
+// porque a rota pública de redirecionamento não sabe de qual workspace é —
+// acha o produto só pelo slug.
+export const products = pgTable(
+  "products",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    imageUrl: text("image_url"),
+    // guardado como texto livre (ex: "R$ 149,90") — sem cálculo/moeda de
+    // verdade, só pra exibir na mensagem e na lista de produtos.
+    price: text("price"),
+    // "mercado_livre" | "shopee" | "amazon" | "magalu" | "outro" — ver
+    // MARKETPLACES em lib/products.ts.
+    marketplace: text("marketplace").notNull().default("outro"),
+    // link de afiliado (ou link comum do produto) pra onde o /r/slug redireciona.
+    destinationUrl: text("destination_url").notNull(),
+    slug: text("slug").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    slugIdx: uniqueIndex("products_slug_idx").on(t.slug),
+  })
+);
+
+// Um registro por clique no link rastreável (/r/slug) de um produto —
+// `automationId` só é preenchido quando o clique veio de um link mandado
+// pelo nó "Enviar produto" de uma automação (a URL leva `?a=<automationId>`);
+// clique em link copiado manualmente (ex: colado na bio) fica sem automação.
+export const productClicks = pgTable("product_clicks", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  automationId: text("automation_id").references(() => automations.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const aiSettings = pgTable("ai_settings", {
   workspaceId: text("workspace_id").primaryKey().references(() => workspaces.id, { onDelete: "cascade" }),
   enabled: boolean("enabled").notNull().default(false),

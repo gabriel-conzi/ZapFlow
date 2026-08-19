@@ -209,6 +209,34 @@ function MediaBubble({
   );
 }
 
+function ProductBubble({
+  productLabel,
+  extraText,
+  fields,
+}: {
+  productLabel?: string;
+  extraText?: string;
+  fields?: Record<string, string>;
+}) {
+  return (
+    <div className="flex justify-end">
+      <div className="flex w-[85%] max-w-[220px] flex-col gap-1 rounded-2xl rounded-br-sm bg-neutral-800 p-1.5">
+        {productLabel ? (
+          <p className="text-[11px] font-medium leading-snug text-neutral-100">{productLabel}</p>
+        ) : (
+          <p className="text-[10px] italic text-neutral-500">nenhum produto escolhido ainda</p>
+        )}
+        {extraText && (
+          <p className="text-[10px] leading-snug text-neutral-300">{renderFieldTokens(extraText, fields)}</p>
+        )}
+        <span className="mt-0.5 w-fit rounded-full border border-green-400/60 bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-green-300">
+          🛒 Comprar
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────── Modo Visualização (passivo) ─────────────────────────
 
 function ReplyButtonsPreview({ node }: { node: Extract<FlowNode, { type: "sendMessage" }> }) {
@@ -258,6 +286,8 @@ function StepBubbles({ node }: { node: FlowNode }) {
       return <MediaBubble type="audio" url={node.data.mediaUrl} caption={node.data.caption} />;
     case "sendFile":
       return <MediaBubble type="file" url={node.data.mediaUrl} caption={node.data.caption} />;
+    case "sendProduct":
+      return <ProductBubble productLabel={node.data.productLabel} extraText={node.data.extraText} />;
     case "collectData":
       return (
         <>
@@ -381,6 +411,8 @@ function TestStepView({
       return <MediaBubble type="audio" url={node.data.mediaUrl} caption={node.data.caption} fields={fields} />;
     case "sendFile":
       return <MediaBubble type="file" url={node.data.mediaUrl} caption={node.data.caption} fields={fields} />;
+    case "sendProduct":
+      return <ProductBubble productLabel={node.data.productLabel} extraText={node.data.extraText} fields={fields} />;
     case "delay": {
       const unitLabel = DELAY_UNIT_LABEL[node.data.unit] ?? node.data.unit;
       return (

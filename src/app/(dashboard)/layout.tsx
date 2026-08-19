@@ -6,6 +6,8 @@ import {
   Inbox,
   Users,
   Workflow,
+  Package,
+  TrendingUp,
   Settings,
   CreditCard,
   Camera,
@@ -20,6 +22,8 @@ const links = [
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/contacts", label: "Contatos", icon: Users },
   { href: "/automations", label: "Automações", icon: Workflow },
+  { href: "/products", label: "Produtos", icon: Package },
+  { href: "/sales", label: "Vendas", icon: TrendingUp },
   { href: "/settings", label: "Configurações", icon: Settings },
   { href: "/billing", label: "Assinatura", icon: CreditCard },
 ];

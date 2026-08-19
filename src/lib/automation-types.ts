@@ -163,6 +163,20 @@ export type SendAudioNodeData = {
   caption?: string;
 };
 
+// Nó "Enviar produto" (Fase A do dashboard de vendas) — manda um produto
+// cadastrado em /products: imagem (se tiver) + nome/preço + botão "Comprar"
+// com o link rastreável do produto (/r/slug — ver lib/products.ts). Guarda só
+// o `productId` (o motor de execução busca o produto fresco no banco na hora
+// de enviar, pra sempre usar o preço/link/imagem mais atual) — `productLabel`
+// é só um resumo salvo pra mostrar no nó do editor sem precisar buscar de
+// novo, mesmo padrão já usado em `TriggerNodeData.mediaLabel`.
+export type SendProductNodeData = {
+  label?: string;
+  productId?: string;
+  productLabel?: string; // ex: "Fone Bluetooth XYZ — R$ 89,90"
+  extraText?: string; // texto opcional que aparece antes do produto
+};
+
 export type DelayNodeData = {
   label?: string;
   amount: number;
@@ -225,6 +239,7 @@ export type FlowNode =
   | { id: string; type: "sendVideo"; position: Position; data: SendVideoNodeData }
   | { id: string; type: "sendFile"; position: Position; data: SendFileNodeData }
   | { id: string; type: "sendAudio"; position: Position; data: SendAudioNodeData }
+  | { id: string; type: "sendProduct"; position: Position; data: SendProductNodeData }
   | { id: string; type: "delay"; position: Position; data: DelayNodeData }
   | { id: string; type: "addTag"; position: Position; data: AddTagNodeData }
   | { id: string; type: "condition"; position: Position; data: ConditionNodeData }

@@ -11,6 +11,7 @@ import {
   instagramAccounts,
   telegramAccounts,
   messages,
+  products,
   tags,
 } from "@/db/schema";
 import { and, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
@@ -19,6 +20,7 @@ import { sendFacebookMessage } from "@/lib/facebook";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmailMessage } from "@/lib/email";
 import { generateAiReply } from "@/lib/ai";
+import { buildTrackedProductUrl } from "@/lib/products";
 import { getConditionRules, getMessageButtons, hasReplyButtons, matchesAccountScope, toSendableButtons } from "@/lib/automation-types";
 import type {
   AccountScopeEntry,
@@ -29,6 +31,7 @@ import type {
   ConditionRule,
   MediaAttachment,
   SendMessageNodeData,
+  SendProductNodeData,
   SendableButton,
 } from "@/lib/automation-types";
 
@@ -608,6 +611,18 @@ async function advanceRun(initialRun: RunRow, flow: AutomationFlow) {
         continue;
       }
 
+      if (node.type === "sendProduct") {
+        await executeSendProduct(current, node.data);
+        if (current.commentId) {
+          // mesma regra dos outros nós que mandam mensagem: o comment_id
+          // (resposta privada a um comentário) só vale pra 1 envio
+          await db.update(automationRuns).set({ commentId: null }).where(eq(automationRuns.id, current.id));
+          current = { ...current, commentId: null };
+        }
+        current = await persistNext(current, nextNodeId(flow, node.id));
+        continue;
+      }
+
       if (node.type === "addTag") {
         await executeAddTag(current, node.data);
         current = await persistNext(current, nextNodeId(flow, node.id));
@@ -820,6 +835,84 @@ async function executeSendMedia(
       automationId: run.automationId,
     });
   }
+
+  await db
+    .update(conversations)
+    .set({ updatedAt: new Date(), status: "open" })
+    .where(eq(conversations.id, run.conversationId));
+}
+
+/**
+ * Manda um nó "Enviar produto" (Fase A do dashboard de vendas): busca o
+ * produto fresco no banco (pra sempre usar preço/link/imagem atualizados,
+ * mesmo que o Gabriel tenha editado o produto depois de montar o fluxo),
+ * manda a imagem (se tiver) numa mensagem separada, e depois nome + preço +
+ * texto extra opcional com um botão "Comprar" levando pro link rastreável
+ * (/r/slug) — cada clique nesse link vira 1 linha em `product_clicks`,
+ * contada na página Vendas.
+ */
+async function executeSendProduct(run: RunRow, data: SendProductNodeData) {
+  if (!run.conversationId) throw new Error("Execução sem conversa associada");
+  const productId = data.productId?.trim();
+  if (!productId) return; // nó sem produto escolhido ainda: não faz nada, mas não quebra o fluxo
+
+  const [product] = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+  if (!product || !product.active) return; // produto removido/pausado depois de configurado: não quebra o fluxo
+
+  const [contact] = await db.select().from(contacts).where(eq(contacts.id, run.contactId)).limit(1);
+  if (!contact) throw new Error("Contato não encontrado");
+
+  const { accessToken, platform } = await resolveContactChannel(contact);
+  const trackedUrl = buildTrackedProductUrl(product.slug, run.automationId);
+  const hasImage = Boolean(product.imageUrl?.trim());
+
+  // 1) imagem do produto, se tiver — mensagem separada (a Graph API do
+  // Instagram/Facebook não permite misturar anexo de mídia com texto/botão
+  // na mesma mensagem; mesmo padrão de 2 mensagens que o nó "Enviar imagem"
+  // já usa pra legenda).
+  if (hasImage) {
+    const imageResult = await sendPlatformMessage(platform, {
+      accessToken,
+      recipientId: contact.igScopedId,
+      commentId: run.commentId ?? undefined,
+      text: "",
+      media: { type: "image", url: product.imageUrl!.trim() },
+    });
+    await db.insert(messages).values({
+      conversationId: run.conversationId,
+      direction: "outbound",
+      sender: "automation",
+      text: "[imagem do produto]",
+      igMessageId: imageResult.message_id ?? null,
+      automationId: run.automationId,
+    });
+  }
+
+  // 2) nome + preço + texto extra opcional, com botão "Comprar". Não reusa
+  // `commentId` aqui se a imagem já usou (a Meta só permite 1 resposta
+  // privada por comentário) — mesma regra que "Enviar imagem" já segue.
+  const priceLine = product.price?.trim() ? ` — ${product.price.trim()}` : "";
+  const extraRaw = data.extraText?.trim();
+  const extra = extraRaw ? `\n\n${interpolateFields(extraRaw, contact.customFields)}` : "";
+  const text = `${product.name}${priceLine}${extra}`;
+
+  const textResult = await sendPlatformMessage(platform, {
+    accessToken,
+    recipientId: contact.igScopedId,
+    commentId: hasImage ? undefined : run.commentId ?? undefined,
+    text,
+    buttons: [{ type: "web_url", title: "🛒 Comprar", url: trackedUrl }],
+    subject: platform === "email" ? await emailReplySubject(run.conversationId) : undefined,
+  });
+
+  await db.insert(messages).values({
+    conversationId: run.conversationId,
+    direction: "outbound",
+    sender: "automation",
+    text,
+    igMessageId: textResult.message_id ?? null,
+    automationId: run.automationId,
+  });
 
   await db
     .update(conversations)

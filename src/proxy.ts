@@ -12,7 +12,11 @@ const PUBLIC_PATHS = [
   "/api/email/webhook",
   "/privacidade",
   "/termos",
+  "/excluir-dados",
   "/api/automations/resume",
+  // link curto rastreável de produto (ver src/app/r/[slug]/route.ts) — quem
+  // clica não está logado no ZapFlow, então precisa ficar público.
+  "/r/",
 ];
 
 export default auth((req) => {
