@@ -860,7 +860,10 @@ export function NodePanel({
               &quot;🛒 Comprar&quot; que leva pro link rastreável do produto — cada clique conta na
               página <Link href="/sales" target="_blank" className="text-primary underline">Vendas</Link>.
               Preço e link vêm sempre atualizados de /products, mesmo que você edite o produto depois
-              de montar esse fluxo.
+              de montar esse fluxo. O contato também recebe automaticamente uma tag
+              &quot;Interesse: {node.data.productLabel || "nome do produto"}&quot;, pra você poder
+              filtrar em <Link href="/contacts" target="_blank" className="text-primary underline">Contatos</Link>{" "}
+              quem já demonstrou interesse em cada produto.
             </p>
           </div>
         )}

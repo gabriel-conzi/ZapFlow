@@ -918,6 +918,21 @@ async function executeSendProduct(run: RunRow, data: SendProductNodeData) {
     .update(conversations)
     .set({ updatedAt: new Date(), status: "open" })
     .where(eq(conversations.id, run.conversationId));
+
+  // Marca automaticamente o contato com uma tag do produto que ele recebeu
+  // (ex: "Interesse: Fone Bluetooth XYZ") — permite depois filtrar/segmentar
+  // contatos em Contatos por produto de interesse, sem precisar de nenhuma
+  // API externa de marketplace pra isso (Fase B do dashboard de vendas,
+  // 19/08/2026).
+  const interestTag = await getTagByName(contact.workspaceId, `Interesse: ${product.name}`);
+  const [existingInterestLink] = await db
+    .select()
+    .from(contactTags)
+    .where(and(eq(contactTags.contactId, run.contactId), eq(contactTags.tagId, interestTag.id)))
+    .limit(1);
+  if (!existingInterestLink) {
+    await db.insert(contactTags).values({ contactId: run.contactId, tagId: interestTag.id });
+  }
 }
 
 async function getTagByName(workspaceId: string, name: string) {

@@ -93,7 +93,7 @@ dar este passo a passo completo (adaptando só a mensagem do commit):
    `https://app.netlify.com/projects/cheerful-pony-eadf56/deploys` e ver o deploy mais recente
    com uma bolinha verde "Published".
 
-## Status: Fase 1 completa e testada em produção, Fase A do dashboard de vendas em código (aguardando publicar)
+## Status: Fase 1 completa e testada em produção, Fase A do dashboard de vendas PUBLICADA (19/08/2026)
 
 - [x] Cadastro (`/register`) e login (`/login`) funcionando de verdade no site publicado.
 - [x] Dashboard, Inbox, Contatos, Automações, Produtos, Vendas, Configurações, Assinatura.
@@ -114,57 +114,20 @@ dar este passo a passo completo (adaptando só a mensagem do commit):
 - [x] Corrigido nó novo aparecendo fora da área visível no editor de automações.
 - [x] Campos customizados editáveis manualmente na tela de Contatos.
 - [x] Página `/excluir-dados` criada em 18/08/2026 — exigida pela Meta.
-- [x] **NOVO (19/08/2026, não publicado ainda) — Fase A do dashboard de vendas**: página
-      `/products` (cadastro de produto/link de afiliado, com link curto rastreável automático),
-      novo nó "Enviar produto" no construtor de automações (manda imagem + nome + preço + botão
-      "Comprar" com link rastreável, buscando o produto sempre atualizado do banco), página
-      `/sales` (ranking de produtos e de automações por clique). Detalhes completos em
-      `claude/feature-produtos-vendas-2026-08-19.md`. Escrito direto no código do Gabriel via
-      device bridge, validado (`tsc`/`eslint`/`next build` limpos num clone à parte) — **falta o
-      Gabriel rodar `npm run db:push` (tabelas novas `products`/`product_clicks`) e depois
-      publicar (`git add/commit/push`)**, ver "Ação pendente do Gabriel agora" abaixo.
+- [x] **Fase A do dashboard de vendas** (19/08/2026) — página `/products` (cadastro de
+      produto/link de afiliado, com link curto rastreável automático), novo nó "Enviar produto"
+      no construtor de automações (manda imagem + nome + preço + botão "Comprar" com link
+      rastreável, buscando o produto sempre atualizado do banco), página `/sales` (ranking de
+      produtos e de automações por clique). Detalhes completos em
+      `claude/feature-produtos-vendas-2026-08-19.md`. **`npm run db:push` e `git push` já feitos
+      pelo Gabriel, CONFIRMADO publicado e visível em produção, e TESTE DE PONTA A PONTA
+      CONFIRMADO pelo Gabriel** (19/08/2026) — cadastro de produto, link curto, clique
+      registrado, aparição em Vendas e nó "Enviar produto" numa automação real, tudo
+      funcionando. **Fase A está 100% concluída e validada.**
 
 ## ⚠️ Ação pendente do Gabriel agora (19/08/2026)
 
-### 1. Rodar `npm run db:push` (cria as tabelas novas de Produtos/Vendas no banco)
-
-Sem isso as páginas `/products` e `/sales`, e o nó "Enviar produto", vão dar erro em produção.
-
-1. Abra o **Explorador de Arquivos** do Windows e vá até `C:\Users\gabri\Downloads\zapflow-saas`.
-2. Clique na barra de endereço, digite `powershell` e aperte **Enter**.
-3. Cole e aperte Enter:
-   ```
-   npm run db:push
-   ```
-4. Pode aparecer uma pergunta no terminal tipo "Is X table created or renamed...?" — se aparecer,
-   use as setas do teclado pra escolher a opção **"+ table created"** (a primeira, criar tabela
-   nova) e aperte Enter pra cada uma. São 2 tabelas novas (`products` e `product_clicks`).
-5. Espere terminar (deve mostrar algo como "Changes applied").
-
-### 2. Publicar o código (git add/commit/push)
-
-Depois do passo 1, na mesma janela do PowerShell (ou abrindo de novo, ver seção "Como publicar
-mudanças no site" acima), cole um comando de cada vez:
-```
-git add .
-```
-```
-git commit -m "Fase A do dashboard de vendas: Produtos, no Enviar produto, pagina Vendas"
-```
-```
-git push
-```
-Espera 1-3 minutos e o site publica sozinho. Depois de publicado, os links **Produtos** e
-**Vendas** aparecem na barra lateral do painel.
-
-### 3. Testar
-
-Cadastrar 1 produto de teste em `/products` (pode usar um link de afiliado de verdade ou
-qualquer link por enquanto), copiar o link curto gerado e abrir num navegador (deve redirecionar
-pro link de destino) — depois conferir se o clique apareceu em `/sales`. Depois, testar o nó
-"Enviar produto" numa automação de teste.
-
-### 4. Itens antigos, ainda pendentes (de sessões anteriores — confirmar se já foram feitos)
+### 1. Itens antigos, ainda pendentes (de sessões anteriores — confirmar se já foram feitos)
 
 - Reconectar as duas contas do Instagram no ZapFlow (Configurações → Desconectar → Conectar de
   novo, pra @usepostflow e @fuxica_aqui) — necessário pra permissão de comentários funcionar.
@@ -268,6 +231,10 @@ campo** — nem no site da Mailgun nem na Netlify. Tudo que envolve o valor de u
 
 - Gabriel nunca edita código — sempre arquivo pronto ou comando pra copiar/colar, com passo
   a passo completo (ver seção "REGRA MAIS IMPORTANTE" no topo deste arquivo).
+- **Mercado Livre NÃO tem API pública de afiliados** (confirmado por pesquisa em 19/08/2026,
+  ver `claude/estrategia-dashboard-influencer-marketplace-2026-08-19.md` seção 8.1) — gerar
+  link de afiliado e confirmar comissão só é possível manualmente pelo painel deles. Não
+  prometer isso automatizado pro Gabriel.
 - ZapFlow é 100% independente do usepostflow (projeto separado, sem integração de código) —
   a única ponte planejada é a vitrine de produtos (Fase C do dashboard de vendas), ainda não
   implementada.
